@@ -33,7 +33,7 @@ Before you begin, ensure you have the following installed:
    ```bash
    git clone https://github.com/your-username/labcas-docker.git
    cd labcas-docker
-
+    ```
 2. **Configure Credentials**
 
    You will need your LabCAS username and password for authentication. These can be configured directly in the `build_labcas.sh` script or passed as environment variables.
@@ -44,6 +44,7 @@ To build and run the LabCAS Docker environment, simply execute the `build_labcas
 
 ```bash
 ./build_labcas.sh
+```
 
 This script will:
 
@@ -64,6 +65,7 @@ Initializing LDAP configuration...
 Starting Apache service...
 Starting LabCAS backend services...
 LabCAS container setup completed successfully.
+```
 
 ## Configuration
 
@@ -93,6 +95,7 @@ If you want to preview what will happen without actually downloading any files, 
 
 ```bash
 $DryRun = $true
+```
 
 This will output the paths of the files that would be downloaded without actually performing the downloads.
 
@@ -102,6 +105,7 @@ You can modify the script to run multiple concurrent jobs by changing the `$Work
 
 ```bash
 $Workers = 4  # Number of parallel jobs
+```
 
 ## Contributing
 
