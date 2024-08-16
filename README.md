@@ -54,8 +54,6 @@ This script will:
 4. Start the Apache server.
 5. Launch the LabCAS backend services.
 
-The script will also skip downloading any files that already exist on disk.
-
 ### Example Output
 
 ```bash
@@ -85,27 +83,6 @@ To modify the build and run process, you can edit the `build_labcas.sh` script. 
 
 - `IMAGE_NAME`: The name of the Docker image to build (default: `labcas_debug_image`)
 - `CONTAINER_NAME`: The name of the Docker container to run (default: `labcas_debug_instance`)
-- `DownloadDirectory`: The directory where downloaded files are stored.
-
-## Advanced Usage
-
-### Dry Run
-
-If you want to preview what will happen without actually downloading any files, you can enable the dry run mode by setting the `DryRun` variable in the `build_labcas.sh` script:
-
-```bash
-$DryRun = $true
-```
-
-This will output the paths of the files that would be downloaded without actually performing the downloads.
-
-### Concurrent Jobs
-
-You can modify the script to run multiple concurrent jobs by changing the `$Workers` variable. This allows you to download files in parallel.
-
-```bash
-$Workers = 4  # Number of parallel jobs
-```
 
 ## Contributing
 
