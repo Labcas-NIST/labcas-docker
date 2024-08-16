@@ -4,8 +4,8 @@
 set -e
 
 # Variables
-IMAGE_NAME="labcas_debug_image"
-CONTAINER_NAME="labcas_debug_instance"
+IMAGE_NAME="labcas_debug_image_nist"
+CONTAINER_NAME="labcas_debug_instance_nist"
 LDAP_ADMIN_USERNAME="admin"
 LDAP_ADMIN_PASSWORD="secret"
 LDAP_ROOT="dc=labcas,dc=jpl,dc=nasa,dc=gov"

@@ -37,13 +37,19 @@ RUN mkdir -p $LABCAS_HOME/labcas-backend /tmp/labcas/etc /etc/ldap/ssl /root/cer
 
 # Clone LabCAS backend repository
 RUN git clone https://github.com/EDRN/labcas-backend.git $LABCAS_HOME/labcas-backend
+WORKDIR $LABCAS_HOME/labcas-backend
+RUN mvn clean install
 
 # Setup keystore and certificates
-RUN keytool -genkeypair -alias solr-ssl -keyalg RSA -keysize 4096 -validity 720 \
+RUN if ! keytool -list -alias solr-ssl -keystore /tmp/labcas/etc/solr-ssl.keystore.p12 -storepass secret 2>/dev/null; then \
+    keytool -genkeypair -alias solr-ssl -keyalg RSA -keysize 4096 -validity 720 \
     -keystore /tmp/labcas/etc/solr-ssl.keystore.p12 -storetype PKCS12 -storepass secret \
-    -keypass secret -dname "CN=localhost, OU=LabCAS, O=JPL, L=Pasadena, ST=CA, C=USA" && \
+    -keypass secret -dname "CN=localhost, OU=LabCAS, O=JPL, L=Pasadena, ST=CA, C=USA"; \
+    fi && \
+    if ! keytool -list -alias tomcat -keystore /etc/ca-certificates/keystore.jks -storepass secret 2>/dev/null; then \
     keytool -genkey -alias tomcat -keyalg RSA -keysize 2048 -keystore /etc/ca-certificates/keystore.jks \
-    -storepass secret -keypass secret -dname "CN=David, OU=JPL, O=JPL, L=Pasadena, ST=CA, C=US" && \
+    -storepass secret -keypass secret -dname "CN=David, OU=JPL, O=JPL, L=Pasadena, ST=CA, C=US"; \
+    fi && \
     openssl req -new -x509 -days 365 -nodes -out /etc/ldap/ssl/ldap-cert.pem -keyout /etc/ldap/ssl/ldap-key.pem -subj "/CN=localhost" && \
     openssl genpkey -algorithm RSA -out /root/certs/hostkey.pem && \
     openssl req -new -x509 -key /root/certs/hostkey.pem -out /root/certs/hostcert.pem -days 365 -subj "/C=US/ST=CA/L=Pasadena/O=JPL/OU=LabCAS/CN=labcas.jpl.nasa.gov"
@@ -66,9 +72,7 @@ RUN git clone https://github.com/Labcas-NIST/Labcas-ui.git /var/www/html/labcas-
 RUN echo "<html><body><h1>Hello, World2</h1></body></html>" > /var/www/html/test.html
 
 # Final setup
-WORKDIR $LABCAS_HOME/labcas-backend
-RUN mvn clean install && \
-    sed -i '/solr start/s/$/ -force/' /tmp/labcas/start.sh
+RUN sed -i '/solr start/s/$/ -force/' /tmp/labcas/start.sh
 
 # Make necessary scripts executable
 RUN chmod +x /tmp/ldap/init_ldap.sh /tmp/labcas/start.sh
