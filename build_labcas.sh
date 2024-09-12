@@ -26,6 +26,9 @@ docker run -d --name ${CONTAINER_NAME} \
     -e LDAP_ROOT="${LDAP_ROOT}" \
     ${IMAGE_NAME}:latest
 
+# Wait for services to spin up
+sleep 1m
+
 # Initialize LDAP configuration
 echo "Initializing LDAP configuration..."
 docker exec ${CONTAINER_NAME} bash /tmp/ldap/init_ldap.sh

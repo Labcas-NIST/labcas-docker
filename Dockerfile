@@ -45,12 +45,12 @@ RUN if ! keytool -list -alias solr-ssl -keystore /tmp/labcas/etc/solr-ssl.keysto
     keytool -genkeypair -alias solr-ssl -keyalg RSA -keysize 4096 -validity 720 \
     -keystore /tmp/labcas/etc/solr-ssl.keystore.p12 -storetype PKCS12 -storepass secret \
     -keypass secret -dname "CN=localhost, OU=LabCAS, O=JPL, L=Pasadena, ST=CA, C=USA"; \
-    fi && \
-    if ! keytool -list -alias tomcat -keystore /etc/ca-certificates/keystore.jks -storepass secret 2>/dev/null; then \
-    keytool -genkey -alias tomcat -keyalg RSA -keysize 2048 -keystore /etc/ca-certificates/keystore.jks \
-    -storepass secret -keypass secret -dname "CN=David, OU=JPL, O=JPL, L=Pasadena, ST=CA, C=US"; \
-    fi && \
-    openssl req -new -x509 -days 365 -nodes -out /etc/ldap/ssl/ldap-cert.pem -keyout /etc/ldap/ssl/ldap-key.pem -subj "/CN=localhost" && \
+    fi
+
+RUN keytool -genkey -alias tomcat -keyalg RSA -keysize 2048 -keystore /etc/ca-certificates/keystore.jks \
+    -storepass secret -keypass secret -dname "CN=David, OU=JPL, O=JPL, L=Pasadena, ST=CA, C=US"; 
+
+RUN openssl req -new -x509 -days 365 -nodes -out /etc/ldap/ssl/ldap-cert.pem -keyout /etc/ldap/ssl/ldap-key.pem -subj "/CN=localhost" && \
     openssl genpkey -algorithm RSA -out /root/certs/hostkey.pem && \
     openssl req -new -x509 -key /root/certs/hostkey.pem -out /root/certs/hostcert.pem -days 365 -subj "/C=US/ST=CA/L=Pasadena/O=JPL/OU=LabCAS/CN=labcas.jpl.nasa.gov"
 
@@ -79,6 +79,3 @@ RUN chmod +x /tmp/ldap/init_ldap.sh /tmp/labcas/start.sh
 
 # Expose necessary ports (if needed)
 EXPOSE 80 443
-
-# Set default command
-CMD ["/tmp/labcas/start.sh"]
