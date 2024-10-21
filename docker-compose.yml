@@ -16,19 +16,10 @@ services:
     ports:
       - "389:389"
       - "1389:1389"
-    #volumes:
-     #- ./ldap/ldap:/tmp/ldap
     volumes:
       - ./ldap/custom_ldifs:/container-init.d
     networks:
       - labcas-net
-        #command: >
-        #/bin/bash -c "
-        #/opt/bitnami/scripts/openldap/run.sh &
-        #sleep 30 &&
-        #/tmp/ldap/init_ldap.sh &&
-        #tail -f /dev/null
-        #"
 
   labcas-backend:
     build: ./labcas-backend
@@ -64,11 +55,6 @@ services:
       - ./labcas-ui/environment.cfg:/usr/local/apache2/htdocs/labcas-ui/assets/conf/environment.cfg
     networks:
       - labcas-net
-      #command: >
-      #/bin/bash -c "
-      #/usr/sbin/apache2ctl start &&
-      #tail -f /dev/null
-      #"
 
 networks:
   labcas-net:

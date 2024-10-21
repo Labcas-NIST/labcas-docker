@@ -40,30 +40,26 @@ Before you begin, ensure you have the following installed:
 
 ## Usage
 
-To build and run the LabCAS Docker environment, simply execute the `build_labcas.sh` script:
+To build and run the LabCAS Docker environment, simply run:
 
 ```bash
-./build_labcas.sh
+docker-compose up --build
+```
+
+If you have already run previous builds and re-running, recommend shutting down previous environments first:
+
+```bash
+docker-compose down
+docker-compose up --build
 ```
 
 This script will:
 
-1. Build the Docker image from the `Dockerfile`.
+1. Build the Docker image across the `Dockerfiles` in subdirectories labcas-ui, labcas-backend, and ldap.
 2. Run the Docker container with the necessary environment variables.
 3. Initialize the LDAP configuration.
 4. Start the Apache server.
 5. Launch the LabCAS backend services.
-
-### Example Output
-
-```bash
-Building Docker image...
-Running Docker container...
-Initializing LDAP configuration...
-Starting Apache service...
-Starting LabCAS backend services...
-LabCAS container setup completed successfully.
-```
 
 ## Important Notes and Troubleshooting
 

@@ -1,5 +1,0 @@
-dn: cn=Super User,ou=groups,dc=labcas,dc=jpl,dc=nasa,dc=gov
-objectClass: top
-objectClass: groupOfNames
-cn: Super User
-member: uid=dliu,ou=users,dc=labcas,dc=jpl,dc=nasa,dc=gov

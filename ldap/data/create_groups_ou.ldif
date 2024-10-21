@@ -1,4 +1,0 @@
-dn: ou=groups,dc=labcas,dc=jpl,dc=nasa,dc=gov
-objectClass: top
-objectClass: organizationalUnit
-ou: groups

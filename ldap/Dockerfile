@@ -22,26 +22,9 @@ RUN openssl req -new -x509 -days 365 -nodes -out /etc/ldap/ssl/ldap-cert.pem -ke
 # Copy ldap setup scripts
 COPY ldap /tmp/ldap
 
-#RUN useradd -r -s /sbin/nologin slapd
-# Set ownership for the slapd user
-#RUN chown -R slapd:slapd /opt/bitnami/openldap /tmp/ldap 
-
 # Make ldap setup script executable
 RUN chmod +x /tmp/ldap/init_ldap.sh
 
 # Switch back to non-root user
 #USER slapd
 USER 1001
-
-
-# Set the entrypoint to run the init script and start OpenLDAP
-#ENTRYPOINT ["/tmp/ldap/init_ldap.sh"]
-
-# Copy the entrypoint script
-#COPY entrypoint.sh /tmp/entrypoint.sh
-
-# Make the entrypoint script executable
-#RUN chmod +x /tmp/entrypoint.sh
-
-# Set the entrypoint
-#ENTRYPOINT ["/tmp/entrypoint.sh"]
