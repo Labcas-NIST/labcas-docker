@@ -27,7 +27,7 @@ docker run -d --name ${CONTAINER_NAME} \
     ${IMAGE_NAME}:latest
 
 # Wait for services to spin up
-sleep 1m
+sleep 60
 
 # Initialize LDAP configuration
 echo "Initializing LDAP configuration..."

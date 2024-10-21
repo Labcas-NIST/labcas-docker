@@ -1,0 +1,11 @@
+dn: uid=dliu,ou=users,dc=labcas,dc=jpl,dc=nasa,dc=gov
+objectClass: inetOrgPerson
+objectClass: organizationalPerson
+objectClass: person
+objectClass: top
+uid: dliu
+sn: Liu
+cn: Data Liu
+displayName: Data Liu
+userPassword: {SSHA}iIRK9DaX8yFmDCw+dpq+lGN08tWdqiL6
+mail: dliu@example.com

@@ -1,0 +1,6 @@
+dn: cn=admin,dc=labcas,dc=jpl,dc=nasa,dc=gov
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: admin
+description: LDAP administrator
+userPassword: {SSHA}iIRK9DaX8yFmDCw+dpq+lGN08tWdqiL6

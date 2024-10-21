@@ -1,0 +1,4 @@
+dn: ou=users,dc=labcas,dc=jpl,dc=nasa,dc=gov
+objectClass: top
+objectClass: organizationalUnit
+ou: users
