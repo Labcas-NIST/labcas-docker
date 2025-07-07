@@ -19,11 +19,11 @@ RUN openssl req -new -x509 -days 365 -nodes -out /etc/ldap/ssl/ldap-cert.pem -ke
     openssl req -new -x509 -key /root/certs/hostkey.pem -out /root/certs/hostcert.pem -days 365 -subj "/C=US/ST=CA/L=Pasadena/O=JPL/OU=LabCAS/CN=labcas.jpl.nasa.gov"
 
 
-# Create symlink for ldap configuration from mounted shared config
-RUN ln -sf /config/ldap /tmp/ldap
+# Copy ldap setup scripts
+COPY ldap /tmp/ldap
 
 # Make ldap setup script executable
-# Permission changes for init_ldap.sh are now handled in the entrypoint script.
+RUN chmod +x /tmp/ldap/init_ldap.sh
 
 # Switch back to non-root user
 #USER slapd

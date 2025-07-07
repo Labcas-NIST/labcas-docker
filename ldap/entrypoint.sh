@@ -1,12 +1,4 @@
 #!/bin/bash
-set -e
-echo "Running LDAP entrypoint script..."
-if [ -f /tmp/ldap/init_ldap.sh ]; then
-  chmod +x /tmp/ldap/init_ldap.sh
-  echo "init_ldap.sh permissions set."
-else
-  echo "WARNING: /tmp/ldap/init_ldap.sh not found."
-fi
 
 set -e
 

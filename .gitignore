@@ -1,5 +1,17 @@
 *.swp
-docker-volumes/*
-data/
-airflow/logs/*
-!airflow/logs/.gitkeep
+.env
+*/certs/*
+*/data/*
+.DS_Store
+data/*
+
+airflow/logs/
+airflow/dags/__pycache__/
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore log files and log directories
+*.log
+airflow/logs/
+.env

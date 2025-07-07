@@ -2,6 +2,9 @@ FROM apache/airflow:2.6.3
 
 USER root
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install classic Docker Compose (v1) CLI so BashOperator can invoke
+# `docker-compose …` inside the Airflow container.  We install it later
+# as *airflow* user to comply with the upstream image guidelines.
 
 ARG GITHUB_TOKEN
 RUN if [ -z "$GITHUB_TOKEN" ]; then \
@@ -15,5 +18,9 @@ RUN if [ -f /opt/publish/setup.py ]; then \
       chmod +x /opt/publish/publish && ln -s /opt/publish/publish /usr/local/bin/publish; \
     fi
 
+COPY scripts/start_local_executor.sh /opt/airflow/scripts/start_local_executor.sh
+RUN chmod +x /opt/airflow/scripts/start_local_executor.sh
+
 USER airflow
-RUN pip install --no-cache-dir pandas openpyxl docker psycopg2-binary
+# Add docker-compose together with the other Python dependencies
+RUN pip install --no-cache-dir pandas openpyxl docker psycopg2-binary docker-compose

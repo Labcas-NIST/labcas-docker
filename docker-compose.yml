@@ -1,7 +1,16 @@
+version: '3.8'
+
 services:
+  labcas-ubuntubase:
+    build:
+      context: ./common/ubuntubase
+    image: labcas-ubuntubase
+    networks:
+      - labcas-net
   ldap:
     build: ./ldap
     container_name: ldap
+      #user: root
     environment:
       - LDAP_ROOT=dc=labcas,dc=jpl,dc=nasa,dc=gov
       - LDAP_ADMIN_USERNAME=admin
@@ -10,16 +19,12 @@ services:
       - LDAP_DEBUG=true
       - BITNAMI_DEBUG=true
       - LDAP_CUSTOM_LDIF_DIR=/container-init.d
-      - LDAP_ENABLE_TLS=yes
-      - LDAP_TLS_CERT_FILE=/etc/ldap/ssl/ldap-cert.pem
-      - LDAP_TLS_KEY_FILE=/etc/ldap/ssl/ldap-key.pem
-      - LDAP_TLS_CA_FILE=/etc/ldap/ssl/ldap-cert.pem
     ports:
       - "389:389"
       - "1389:1389"
-      - "1636:1636"
     volumes:
       - ./ldap/custom_ldifs:/container-init.d
+      - ./data/logs/ldap:/var/log/ldap
     networks:
       - labcas-net
 
@@ -31,35 +36,35 @@ services:
     environment:
       - LABCAS_HOME=/tmp/labcas
     ports:
-      - "8080:8080"
-      - "8444:8444"
-      - "8984:8984"
+      - "8444:8444"  # Map the backend service port
+      - "8984:8984"  # Added for Solr access by publish and airflow
+    expose:
+      - "8081"
+      - "8444"
+      - "8984"
     volumes:
       - ./labcas-backend/labcas.properties:/root/labcas.properties
       - ./labcas-backend/server.xml:/tmp/labcas/apache-tomcat/conf/server.xml
-      - ./docker-volumes/tomcat-logs:/tmp/labcas/apache-tomcat/logs
+      - labcas-solr-index:/tmp/labcas/solr-index
+      - ./shared-config/labcas-backend:/config
+      - ./data/logs/labcas-backend:/var/log/labcas-backend
     networks:
       - labcas-net
-    command: >
-      /bin/bash -c "
-      sleep 30 &&
-      /tmp/labcas/start.sh && /tmp/labcas/init_solr.sh &&
-      tail -f /dev/null
-      "
- 
+
   labcas-ui:
     build: ./labcas-ui
     container_name: labcas-ui
     depends_on:
+      - labcas-ubuntubase
       - labcas-backend
     ports:
-      - "80:80"
-      - "443:443"
+      - "8081:8081"
     volumes:
       - ./labcas-ui/environment.cfg:/usr/local/apache2/htdocs/labcas-ui/assets/conf/environment.cfg
+      - ./data/logs/labcas-ui:/var/log/labcas-ui
+      - ./shared-config/labcas-ui:/config/labcas-ui
     networks:
       - labcas-net
-
   mock-auth:
     build: ./mock-auth
     container_name: mock-auth
@@ -68,41 +73,43 @@ services:
       - labcas-ui
     ports:
       - "3001:3001"
+    expose:
+      - "3001"
     networks:
       - labcas-net
     # environment:
     #   - REDIRECT_DEFAULT=http://localhost:80
 
-  publish:
-    build:
-      context: ./publish
-      args:
-        GITHUB_TOKEN: ${GITHUB_TOKEN}
-    container_name: labcas-publish
-    depends_on:
-      - labcas-backend
-    environment:
-      - solr=https://labcas-backend:8984/solr
-      - SOLR_URL=https://labcas-backend:8984/solr
-      - consortium=${PUBLISH_CONSORTIUM:-EDRN}
-      - collection=${PUBLISH_COLLECTION}
-      - collection_subset=${PUBLISH_COLLECTION_SUBSET}
-      - publish_id=${PUBLISH_ID}
-      - steps=${PUBLISH_STEPS}
-    volumes:
-      - ${HOST_METADATA_PATH:-./metadata}:/mnt/metadata:ro
-      - ${HOST_DATA_PATH:-./data}:/data
-      #- ${HOST_DATA_PATH:-./data}:/mnt/data
-      - ./shared-config/publish:/config/publish
-      # expose dummy labcas-data hierarchy (writable for runtime thumbnails etc.)
-      - ./data/labcas-data:/labcas-data
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks:
-      - labcas-net
+  labcas-proxy:
+      build: ./labcas-proxy
+      volumes:
+        - ./data/logs/nginx/:/var/log/nginx/
+      expose:
+          - "80"
+          - "443"
+          - "8099"
+      ports:
+          - "443:443"
+          - "80:80"
+          - "8099:8099"
+      depends_on:
+        - labcas-ui
+        - labcas-ubuntubase
+        - labcas-backend
+      links:
+        - labcas-ui:labcas-ui
+        - labcas-backend:labcas-backend
+      image: labcas-proxy
+      container_name: labcas-proxy
+      restart: "on-failure:5"
+      security_opt: [ no-new-privileges ]
+      pids_limit: 50
+      cap_drop:
+            - NET_ADMIN
+            - SYS_ADMIN
+            - SYS_MODULE
+      networks:
+       - labcas-net
 
   postgres:
     image: postgres:13
@@ -112,9 +119,7 @@ services:
       - POSTGRES_PASSWORD=airflow
       - POSTGRES_DB=airflow
     volumes:
-      - ./docker-volumes/postgres-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+      - postgres-data:/var/lib/postgresql/data
     networks:
       - labcas-net
 
@@ -131,26 +136,64 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - AIRFLOW__WEBSERVER__WORKERS=1
-      - AIRFLOW__WEBSERVER__WORKER_TIMEOUT=120
-      # Absolute host path to project data directory; used by DAG for bind-mount
-      - HOST_DATA_PATH=${HOST_DATA_PATH:-${PWD}/data}
+      - HOST_DATA_PATH=${HOST_DATA_PATH}
+      # Pass through optional metadata, publish config, archive, and labcas-data host paths
+      - HOST_METADATA_PATH=${HOST_METADATA_PATH}
+      - HOST_PUBLISH_CONFIG=${HOST_PUBLISH_CONFIG}
+      - HOST_ARCHIVE_PATH=${HOST_ARCHIVE_PATH}
+      - HOST_LABCAS_DATA=${HOST_LABCAS_DATA}
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/scripts:/opt/airflow/scripts
-      - ./data:/data
       - ./airflow/logs:/opt/airflow/logs
+      - ./data:/data
+      - ./metadata:/metadata
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./shared-config/airflow:/config/airflow
+      # Allow the DAG’s BashOperator to reference the project compose file.
+      - ./docker-compose.yml:/opt/airflow/docker-compose.yml:ro
+      # Mount project read-only elsewhere so build contexts resolve
+      - ./:/project:ro
     ports:
-      - "8081:8080"
+      - "8082:8080"
     networks:
       - labcas-net
-    command: ["bash", "/opt/airflow/scripts/start_local_executor.sh"]
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    entrypoint: ["bash", "/opt/airflow/scripts/start_local_executor.sh"]
+    command: []
+
+  publish:
+    build:
+      context: ./publish
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: labcas-publish
+    depends_on:
+      - labcas-backend
+    environment:
+      - solr=https://labcas-backend:8984/solr/
+      - SOLR_URL=https://labcas-backend:8984/solr/
+      - consortium=${PUBLISH_CONSORTIUM:-NIST}
+      - collection=${PUBLISH_COLLECTION}
+      - publish=True
+      - steps=${PUBLISH_STEPS}
+
+    # Health-check so Airflow can wait until labcas-publish is ready
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f publishing_pipeline.py >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ${HOST_METADATA_PATH:-./metadata}:/mnt/metadata:ro
+      - ${HOST_DATA_PATH:-./data}:/data
+      - ${HOST_LABCAS_DATA:-./data/labcas-data}:/labcas-data
+      - ${HOST_ARCHIVE_PATH:-./data/archive}:/data/archive
+      - ${HOST_PUBLISH_CONFIG:-./shared-config/publish}:/config/publish:ro
+    networks:
+      - labcas-net
 
 networks:
   labcas-net:
+volumes:
+  labcas-solr-index:
+  postgres-data:

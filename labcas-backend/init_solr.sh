@@ -14,7 +14,22 @@ cp /tmp/labcas/sample_data/dataset_solr.json $SOLR_DATA_DIR/
 cp /tmp/labcas/sample_data/file_solr.json $SOLR_DATA_DIR/
 cp /tmp/labcas/sample_data/collection_solr.json $SOLR_DATA_DIR/
 
-# Post JSON files to respective Solr cores
-curl -k "$SOLR_SERVER_URL/solr/datasets/update?commit=true" --data-binary @$SOLR_DATA_DIR/dataset_solr.json -H "Content-type:application/json"
-curl -k "$SOLR_SERVER_URL/solr/files/update?commit=true" --data-binary @$SOLR_DATA_DIR/file_solr.json -H "Content-type:application/json"
-curl -k "$SOLR_SERVER_URL/solr/collections/update?commit=true" --data-binary @$SOLR_DATA_DIR/collection_solr.json -H "Content-type:application/json"
+# Function to check if a Solr core is empty
+is_core_empty() {
+  local core=$1
+  local count=$(curl -sk "$SOLR_SERVER_URL/solr/$core/select?q=*:*&rows=0&wt=json" | grep -o '"numFound":[0-9]*' | grep -o '[0-9]*')
+  [ "$count" = "0" ]
+}
+
+# Only post sample data if the core is empty
+declare -A core_json
+core_json=( ["datasets"]="dataset_solr.json" ["files"]="file_solr.json" ["collections"]="collection_solr.json" )
+
+for core in datasets files collections; do
+  if is_core_empty $core; then
+    echo "Core $core is empty, posting sample data..."
+    curl -k "$SOLR_SERVER_URL/solr/$core/update?commit=true" --data-binary @$SOLR_DATA_DIR/${core_json[$core]} -H "Content-type:application/json"
+  else
+    echo "Core $core already has data, skipping sample insert."
+  fi
+done

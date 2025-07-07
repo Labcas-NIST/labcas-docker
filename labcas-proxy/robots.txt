@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /od/ds/
+Disallow: /od/rmm/

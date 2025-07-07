@@ -1,0 +1,13 @@
+/var/log/nginx/ds.access.log {
+    copytruncate
+    daily
+    size 1K
+    rotate 10
+    missingok
+    notifempty
+    nocompress
+    sharedscripts
+    postrotate
+        service nginx reload>/dev/null 2>&1
+    endscript
+}
