@@ -134,50 +134,6 @@ flowchart TD
 ```
 
 
-### C4 Diagram
-
-```mermaid
-C4Deployment
-title LabCAS Deployment
-
-Deployment_Node(host, "Host Machine", "Linux Server") {
-    Deployment_Node(docker, "Docker Engine", "Docker") {
-        Deployment_Node(net, "labcas-net", "Docker Network") {
-            Container(ldap, "LDAP", "Custom Build", "Provides LDAP directory service with LDAPS on port 1636")
-            Container(backend, "LabCAS Backend", "Tomcat/Java", "Core backend service; exposes 8081, 8444, 8984")
-            Container(ui, "LabCAS UI", "Apache HTTPD", "Web front-end")
-            Container(mockauth, "Mock Auth", "Node/Express", "Authentication mock service on port 3001")
-            Container(proxy, "LabCAS Proxy", "Nginx", "Reverse proxy handling HTTPS/HTTP on 443, 80, 8099")
-            Container(postgres, "Postgres", "Postgres 13", "Database for Airflow")
-            Container(airflow, "Airflow", "Python/LocalExecutor", "Workflow orchestration with DAGs; exposed on 8082")
-            Container(publish, "Publish Service", "Custom Build", "Handles publishing pipeline, connects to Solr in backend")
-        }
-    }
-}
-
-Rel(user, proxy, "HTTPS/HTTP requests")
-Rel(proxy, ui, "Routes traffic")
-Rel(proxy, backend, "Routes API traffic")
-
-Rel(ui, backend, "Calls APIs")
-Rel(backend, ldap, "LDAP Authentication", "LDAPS 1636")
-Rel(mockauth, backend, "Uses backend APIs")
-Rel(mockauth, ui, "Integrates with UI")
-Rel(airflow, backend, "Fetches data & triggers jobs")
-Rel(airflow, postgres, "Stores workflow metadata")
-Rel(publish, backend, "Sends data to Solr (8984)")
-
-Deployment_Node(vols, "Volumes", "Docker Volumes") {
-    ContainerDb(vol1, "labcas-solr-index", "Volume", "Solr index storage")
-    ContainerDb(vol2, "postgres-data", "Volume", "Postgres persistent data")
-}
-
-Rel(backend, vol1, "Stores Solr index")
-Rel(postgres, vol2, "Stores DB data")
-```
-
-
-
 ## Contributing
 
 Contributions are welcome! Please fork the repository, make your changes, and submit a pull request.
