@@ -15,7 +15,7 @@ This repository provides a Dockerized setup for LabCAS (Laboratory Catalog and A
 
 ## Overview
 
-This project automates the deployment of the LabCAS environment using Docker. The Docker image contains all necessary dependencies, including OpenJDK, Apache, LDAP, and the LabCAS backend. The `build_labcas.sh` script simplifies the build and run process, handling LDAP initialization, Apache setup, and backend service execution.
+This project automates the deployment of the LabCAS environment using Docker. The Docker image contains all necessary dependencies, including OpenJDK, Apache, LDAP, and the LabCAS backend.
 
 ## Prerequisites
 
@@ -23,7 +23,6 @@ Before you begin, ensure you have the following installed:
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Git](https://git-scm.com/)
-- [Bash](https://www.gnu.org/software/bash/) (for running the provided script)
 - A valid LabCAS username and password for accessing the resources
 
 ## Installation
@@ -36,7 +35,8 @@ Before you begin, ensure you have the following installed:
     ```
 2. **Configure Credentials**
 
-   You will need your LabCAS username and password for authentication. These can be configured directly in the `build_labcas.sh` script or passed as environment variables.
+   This step is no longer necessary as the `build_labcas.sh` script has been removed.
+
 
 ## Usage
 
@@ -53,7 +53,7 @@ docker-compose down
 docker-compose up --build
 ```
 
-This script will:
+The Docker Composition above will:
 
 1. Build the Docker image across the `Dockerfiles` in subdirectories labcas-ui, labcas-backend, and ldap.
 2. Run the Docker container with the necessary environment variables.
@@ -71,11 +71,11 @@ docker rm [9c*** container ID]
 
 ## Configuration
 
-### Configuration Change: ui/environment.cfg
-Please update the following file: ui/environment.cfg. Replace ip_address_placeholder with the actual IP address of your server. If you are running this locally on a MacBook, you can use localhost as the IP address:
-```bash
-ip_address_placeholder -> localhost (or your server IP)
-```
+The following subsections describe how to configure LabCAS Docker.
+
+### Configuration Change: `ui/environment.cfg`
+
+An earlier version LabCAS Docker required a setting of `ip_address_placeholder` in `ui/environment.cfg`, however this setting no longer appears.
 
 ### Environment Variables
 
@@ -89,10 +89,7 @@ You can configure the following environment variables to customize your setup:
 
 ### Script Configuration
 
-To modify the build and run process, you can edit the `build_labcas.sh` script. The following variables are available:
-
-- `IMAGE_NAME`: The name of the Docker image to build (default: `labcas_debug_image`)
-- `CONTAINER_NAME`: The name of the Docker container to run (default: `labcas_debug_instance`)
+This is no longer necessary as the `build_labcas.sh` script no longer exists! 🎉
 
 
 ## Architecture
