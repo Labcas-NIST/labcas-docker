@@ -1,0 +1,5 @@
+run your docker compose and make sure it's up
+convert the attached script to *sh
+then run bash diagnose_labcas.sh
+
+script is diagnose_labcas.sh
