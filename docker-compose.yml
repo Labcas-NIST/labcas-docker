@@ -58,7 +58,7 @@ services:
     ports:
       - "8081:8081"
     volumes:
-      - ./labcas-ui/environment.cfg:/usr/local/apache2/htdocs/labcas-ui/assets/conf/environment.cfg
+      - ./labcas-ui/environment.cfg:/var/www/html/labcas-ui/assets/conf/environment.cfg
       - ./data/logs/labcas-ui:/var/log/labcas-ui
       - ./shared-config/labcas-ui:/config/labcas-ui
     networks:
