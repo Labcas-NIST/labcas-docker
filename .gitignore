@@ -18,3 +18,4 @@ __pycache__/
 # Ignore log files and log directories
 *.log
 airflow/logs/
+.ldap_logs_pid
