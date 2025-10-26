@@ -23,7 +23,7 @@ services:
       - "1636:1636"
     volumes:
       - ./ldap/custom_ldifs:/container-init.d
-      - ./data/logs/ldap:/var/log/ldap
+      - ./data/logs/ldap:/opt/bitnami/openldap/logs
     networks:
       - labcas-net
 
@@ -47,6 +47,8 @@ services:
       - labcas-solr-index:/tmp/labcas/solr-index
       - ./shared-config/labcas-backend:/config
       - ./data/logs/labcas-backend:/var/log/labcas-backend
+      - ./data/logs/labcas-backend/tomcat:/tmp/labcas/apache-tomcat/logs
+      - ./data/logs/labcas-backend/solr:/tmp/labcas/solr/server/logs
     networks:
       - labcas-net
 
@@ -59,7 +61,7 @@ services:
       - "8081:8081"
     volumes:
       - ./labcas-ui/environment.cfg:/var/www/html/labcas-ui/assets/conf/environment.cfg
-      - ./data/logs/labcas-ui:/var/log/labcas-ui
+      - ./data/logs/labcas-ui:/var/log/apache2
       - ./shared-config/labcas-ui:/config/labcas-ui
     networks:
       - labcas-net

@@ -1,4 +1,4 @@
-FROM bitnami/openldap:latest
+FROM bitnamilegacy/openldap:latest
 
 LABEL maintainer="david.liu@jpl.nasa.gov"
 LABEL description="LDAP service for LabCAS."
