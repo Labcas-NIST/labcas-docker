@@ -50,8 +50,18 @@ RUN apt-get update && \
     git && \
     rm -rf /var/lib/apt/lists/*
 
-# Clone LabCAS UI repository
-RUN git clone https://github.com/Labcas-NIST/Labcas-ui.git /var/www/html/labcas-ui
+# Clone LabCAS UI repository from configurable repo (default public), use default branch
+ARG LABCAS_UI_REPO=https://github.com/Labcas-NIST/Labcas-ui.git
+ARG GITHUB_TOKEN
+RUN set -eux; \
+    repo_url="${LABCAS_UI_REPO}"; \
+    if [ -n "${GITHUB_TOKEN:-}" ]; then \
+      # Inject token into HTTPS URL for private repo access (not needed for public repo)
+      proto=$(echo "$repo_url" | sed -E 's|^(https?)://.*|\1|'); \
+      host_path=$(echo "$repo_url" | sed -E 's|^https?://||'); \
+      repo_url="${proto}://${GITHUB_TOKEN}@${host_path}"; \
+    fi; \
+    git clone --single-branch "$repo_url" /var/www/html/labcas-ui
 
 # Create configuration directory
 RUN mkdir -p /var/www/html/labcas-ui/assets/conf
