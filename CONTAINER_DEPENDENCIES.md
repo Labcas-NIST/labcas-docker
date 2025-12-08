@@ -26,7 +26,7 @@ Named volumes: `labcas-solr-index`, `postgres-data`
 - Actions: Generates self-signed certs and keys; adjusts permissions for slapd user.
 - Additional: Copies initialization scripts from `./ldap` into the image.
 
-### labcas-backend (./labcas-backend/Dockerfile)
+### labcas-backend (./labcas-backend/Dockerfile) - (due to deprecation openJDK will be updated to later version)
 - Base image: `openjdk:8-jdk`
 - APT packages installed:
   - `wget`, `netcat-openbsd`, `git`, `vim`, `ldap-utils`, `maven`
