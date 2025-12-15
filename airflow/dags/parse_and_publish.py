@@ -79,7 +79,7 @@ with DAG(
         ),
         env={
             "PUBLISH_STEPS": os.getenv("PUBLISH_STEPS", "crawl,publish"),
-            "PUBLISH_CONSORTIUM": os.getenv("PUBLISH_CONSORTIUM", "EDRN"),
+            "PUBLISH_CONSORTIUM": os.getenv("PUBLISH_CONSORTIUM", "NIST"),
             "PUBLISH_COLLECTION": os.getenv("PUBLISH_COLLECTION", "Basophile"),
             "PUBLISH_COLLECTION_SUBSET": os.getenv("PUBLISH_COLLECTION_SUBSET", ""),
             "PUBLISH_ID": os.getenv("PUBLISH_ID", ""),

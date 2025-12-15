@@ -139,12 +139,16 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - HOST_DATA_PATH=${HOST_DATA_PATH}
+      # Absolute host paths for DockerOperator bind mounts (fallback to project dir via ${PWD})
+      - HOST_PROJECT_ROOT=${HOST_PROJECT_ROOT:-${PWD}}
+      - HOST_DATA_PATH=${HOST_DATA_PATH:-${PWD}/data}
       # Pass through optional metadata, publish config, archive, and labcas-data host paths
-      - HOST_METADATA_PATH=${HOST_METADATA_PATH}
-      - HOST_PUBLISH_CONFIG=${HOST_PUBLISH_CONFIG}
-      - HOST_ARCHIVE_PATH=${HOST_ARCHIVE_PATH}
-      - HOST_LABCAS_DATA=${HOST_LABCAS_DATA}
+      - HOST_METADATA_PATH=${HOST_METADATA_PATH:-${PWD}/metadata}
+      - HOST_PUBLISH_CONFIG=${HOST_PUBLISH_CONFIG:-${PWD}/shared-config/publish}
+      - HOST_ARCHIVE_PATH=${HOST_ARCHIVE_PATH:-${PWD}/data/archive}
+      - HOST_LABCAS_DATA=${HOST_LABCAS_DATA:-${PWD}/data/labcas-data}
+      # Network name for DockerOperator (defaults to compose network)
+      - COMPOSE_NETWORK_NAME=${COMPOSE_NETWORK_NAME:-labcas-docker-clean_labcas-net}
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/scripts:/opt/airflow/scripts
