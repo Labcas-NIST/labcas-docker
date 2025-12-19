@@ -1,0 +1,45 @@
+import os
+import pathlib
+
+# Required endpoints and identifiers
+solr_url = os.getenv('solr') or os.getenv('SOLR_URL')
+if not solr_url:
+    raise ValueError('The `solr` or `SOLR_URL` environment variable must be provided')
+
+consortium = os.getenv('consortium') or os.getenv('PUBLISH_CONSORTIUM', 'NIST')
+collection = os.getenv('collection') or os.getenv('PUBLISH_COLLECTION', 'fcs_interlab_study')
+collection_subset = os.getenv('collection_subset') or os.getenv('PUBLISH_COLLECTION_SUBSET') or None
+publish_id = os.getenv('publish_id') or os.getenv('PUBLISH_ID') or None
+steps = (os.getenv('steps') or os.getenv('PUBLISH_STEPS', 'crawl,publish')).split(',')
+
+# Paths (inside publish container)
+archive_dir = '/data/archive'
+thumbnails_dir = archive_dir.replace('archive', 'thumbnails')
+pathlib.Path(thumbnails_dir).mkdir(parents=True, exist_ok=True)
+
+github_metadata_dir = '/mnt/metadata'
+metadata_dir = '/data/generated_metadata'
+pathlib.Path(metadata_dir).mkdir(parents=True, exist_ok=True)
+
+# Config directory
+config_dir = pathlib.Path(__file__).parent
+metadata_model_path = os.path.join(config_dir, 'LabCASCoreMetadataModel_V0.0.xlsx')
+config_path = os.path.join(config_dir, 'config.txt')
+inheritance_config = os.path.join(config_dir, 'inheritence_config.txt')
+metadata_filter_path = os.path.join(config_dir, 'filter.txt')
+
+# Flags and knobs
+num_jobs = 5
+create_pre_hash_mapping = False
+publish = True
+run_method = None
+fresh_thumbnails = False
+fresh_headers = False
+fresh_crawl = False
+fresh_hash = False
+auto_detect = True
+generate_header = True
+
+# Mapping used in some flows (unused here)
+disk_to_s3_mapping = {}
+

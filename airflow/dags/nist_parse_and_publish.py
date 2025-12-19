@@ -100,7 +100,7 @@ with DAG(
         bash_command=(
             "set -euo pipefail; "
             # Use the path where publish writes generated JSONs
-            "COL_DIR=/labcas-data/labcas-backend/generated_metadata/nist/fcs_interlab_study; "
+            "COL_DIR=/data/generated_metadata/nist/fcs_interlab_study; "
             "PID=$(find \"$COL_DIR\" -type f -name '*_labcasmet_*.json' | awk -F'_labcasmet_' '{print $2}' | awk -F'.json' '{print $1}' | sort | tail -n 1); "
             "echo Using publish_id: $PID; "
             "docker exec "

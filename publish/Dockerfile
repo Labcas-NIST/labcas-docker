@@ -61,6 +61,9 @@ COPY patch_publishing_pipeline.py /opt/publish/patch_publishing_pipeline.py
 # Patch publishing_pipeline.py to add debug prints
 RUN python3 /opt/publish/patch_publishing_pipeline.py
 
+# Override runtime configs to use /data/archive and /mnt/metadata
+COPY basic.py.patched /opt/publish/src/configs/basic.py
+
 # Override Solr push plugin with guarded required-field fills for LabCAS cores
 COPY solr.py.patched /opt/publish/src/plugins/publish_db_ops/solr.py
 
