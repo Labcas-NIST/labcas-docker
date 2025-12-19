@@ -5,6 +5,8 @@
 .DS_Store
 data/staging/
 data/logs/
+data/archive/
+data/generated_metadata/
 data/labcas-data/labcas-backend/generated_metadata/
 
 airflow/logs/
