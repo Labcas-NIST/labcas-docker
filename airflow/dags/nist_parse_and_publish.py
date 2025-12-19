@@ -33,7 +33,7 @@ with DAG(
             "set -euxo pipefail; "
             "ls -al /data/raw || true; mkdir -p /metadata; "
             "mkdir -p /data/archive/nist/fcs_interlab_study; "
-            "python /opt/airflow/scripts/parsers/nist_parser.py --input-dir /data/raw --output-dir /metadata --collection fcs_interlab_study; "
+            "python /opt/airflow/scripts/parsers/flow_cytometry.py --input-dir /data/raw --output-dir /metadata --collection fcs_interlab_study; "
             # Mirror directory tree into archive so crawler can walk
             "cd /metadata && if [ -d fcs_interlab_study ]; then find fcs_interlab_study -type d -print0 | xargs -0 -I {} mkdir -p /data/archive/nist/{}; fi; "
             # Create dummy files in archive for each [File] cfg discovered in metadata
