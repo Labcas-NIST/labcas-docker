@@ -19,3 +19,6 @@ __pycache__/
 *.log
 airflow/logs/
 .ldap_logs_pid
+.serena/
+metadata/
+publish/solr.py.orig

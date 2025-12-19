@@ -1,0 +1,95 @@
+import json
+import requests
+from src.utils.misc_utils import MyException
+
+from .template import Template
+
+
+class Solr(Template):
+    def __init__(self):
+        super().__init__()
+        self.description = 'for publishing the metadata into solr'
+
+    def push(self, metadata, url, mock=False):
+        # Normalize to dict
+        if isinstance(metadata, dict):
+            m = dict(metadata)
+        else:
+            try:
+                m = json.loads(metadata)
+            except Exception:
+                m = {}
+
+        # Fill required fields conservatively for LabCAS cores
+        try:
+            node = m.get('labcas_node_type')
+            if node == 'files':
+                if not m.get('DatasetVersion'):
+                    m['DatasetVersion'] = '1'
+                if not m.get('DatasetId') and m.get('id'):
+                    parts = m['id'].split('/')
+                    if m.get('FileName') and m['id'].endswith('/' + m['FileName']):
+                        m['DatasetId'] = '/'.join(parts[:-1])
+                    else:
+                        m['DatasetId'] = '/'.join(parts[:-1])
+                if not m.get('DatasetName') and m.get('DatasetId'):
+                    m['DatasetName'] = m['DatasetId'].split('/')[-1]
+            if not m.get('CollectionId') and m.get('CollectionName'):
+                m['CollectionId'] = m['CollectionName']
+            if not m.get('CollectionName') and m.get('CollectionId'):
+                m['CollectionName'] = m['CollectionId']
+        except Exception:
+            pass
+
+        url = url + '/update/json/docs'
+
+        if mock:
+            status = 'successfully mock-pushed to solr'
+        else:
+            headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+            response = requests.post(url, data=bytes(json.dumps(m), 'utf-8'), headers=headers, verify=False)
+
+            if response.status_code == 400:
+                raise MyException("Error while publishing to Solr: " + response.text)
+            else:
+                status = response.text
+        return {'solr_status': status}
+
+    def delete(self, id, url):
+        url = url + '/update?commit=true'
+        metadata = {'delete': {'id': id}}
+        print('deleting: ', url, json.dumps(metadata, indent=4), '\n')
+        headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+        response = requests.post(url, data=bytes(json.dumps(metadata), 'utf-8'), headers=headers, verify=False)
+        if response.status_code == 400:
+            raise MyException("Error while deleting from Solr: " + response.text)
+        else:
+            print('got this response from solr: ', response.text)
+        return response.text
+
+    def delete_by_query(self, key_val, url):
+        url = url + '/update?commit=true'
+        metadata = {'delete': {'query': key_val[0] + ':' + key_val[1]}}
+        print('deleting: ', url, json.dumps(metadata, indent=4), '\n')
+        headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+        response = requests.post(url, data=bytes(json.dumps(metadata), 'utf-8'), headers=headers, verify=False)
+        if response.status_code == 400:
+            raise MyException("Error while deleting from Solr: " + response.text)
+        else:
+            print('got this response from solr: ', response.text)
+        return response.text
+
+    def gather_ids(self, url):
+        url = url + '/select'
+        metadata = {"params": {"q": 'id:*', "rows": 10000, "wt": "json", "fl": "id"}}
+        headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+        print('trying to locate:', url, json.dumps(metadata))
+        response = requests.post(url, data=bytes(json.dumps(metadata), 'utf-8'), headers=headers, verify=False)
+        if response.status_code == 400:
+            raise MyException("Error while gathering IDs from Solr: " + response.text)
+        else:
+            print('got this response from solr: ', response.json())
+        docs = response.json().get('response').get('docs')
+        docs = [doc['id'] for doc in docs]
+        return docs
+

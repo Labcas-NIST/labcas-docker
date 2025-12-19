@@ -32,7 +32,10 @@ import pathlib
 import sys
 
 consortium        = os.getenv('PUBLISH_CONSORTIUM', 'EDRN')
-collection        = os.getenv('PUBLISH_COLLECTION', 'Basophile')
+# Prefer lowercase legacy env if provided, else fall back to PUBLISH_COLLECTION
+collection        = os.getenv('collection', os.getenv('PUBLISH_COLLECTION', 'Basophile'))
+print('DEBUG ENV collection=', os.getenv('collection'))
+print('DEBUG ENV PUBLISH_COLLECTION=', os.getenv('PUBLISH_COLLECTION'))
 collection_subset = os.getenv('PUBLISH_COLLECTION_SUBSET', '')
 archive_dir       = '/data/archive'
 publish_id        = os.getenv('PUBLISH_ID', '')
@@ -57,6 +60,9 @@ COPY patch_publishing_pipeline.py /opt/publish/patch_publishing_pipeline.py
 
 # Patch publishing_pipeline.py to add debug prints
 RUN python3 /opt/publish/patch_publishing_pipeline.py
+
+# Override Solr push plugin with guarded required-field fills for LabCAS cores
+COPY solr.py.patched /opt/publish/src/plugins/publish_db_ops/solr.py
 
 # ensure src-layout package is on PYTHONPATH
 ENV PYTHONPATH=/opt/publish/src

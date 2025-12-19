@@ -1,5 +1,175 @@
 # -*- coding: utf-8 -*-,
 import pandas, json,os, sys, shutil, glob, csv
+from pathlib import Path
+from typing import List, Dict
+
+# --- Added: streamlined Flow Cytometry parser for WG1/2/3 use in Airflow ---
+
+def _coerce_str(v) -> str:
+    if v is None:
+        return ""
+    try:
+        return str(v)
+    except Exception:
+        return ""
+
+def parse_flow_wg_from_dir(input_dir: str, collection: str = "fcs_interlab_study") -> List[Dict]:
+    """Parse WG1/2/3 Excel files in input_dir (data/raw) and return file rows.
+
+    - Accepts files matching WG*part*Table.xlsx and wg*-ver*-all.xlsx
+    - Returns a list of dicts containing FileName, DatasetId, CollectionId, file_id,
+      plus all original row fields (as strings), with NaNs coerced to "".
+    """
+    in_path = Path(input_dir)
+    if not in_path.exists():
+        raise RuntimeError(f"Input directory does not exist: {input_dir}")
+
+    pats = ["WG*part*Table.xlsx", "wg*-ver*-all.xlsx"]
+    excel_files: List[Path] = []
+    for p in pats:
+        excel_files.extend(in_path.glob(p))
+
+    if not excel_files:
+        raise RuntimeError(f"No WG1/2/3 Excel files found in {input_dir}")
+
+    hierarchy_fields = [
+        "WorkingGroup",
+        "InstrumentCode",
+        "SiteCode",
+        "ProtocolID",
+        "ExperimentType",
+        "SampleName",
+        "PrincipleContactID",
+        "DataProcessingLevel",
+        "StudyID",
+        "MaterialCode",
+        "ExperimentID",
+        "ReplicateNumber",
+        "DataFormat",
+    ]
+
+    out_rows: List[Dict] = []
+    for excel in excel_files:
+        try:
+            xls = pandas.ExcelFile(excel)
+            sheet = "Sheet1" if "Sheet1" in xls.sheet_names else xls.sheet_names[0]
+        except Exception as e:
+            raise RuntimeError(f"Failed to read Excel file {excel}: {e}")
+
+        df = pandas.read_excel(excel, sheet_name=sheet, dtype=str).fillna("")
+        for _, r in df.iterrows():
+            row = {k: _coerce_str(v) for k, v in r.to_dict().items()}
+
+            filename = row.get("New FCSC ILS Filename") or row.get("FCSC ILS Filename") or row.get("FileName")
+            filename = _coerce_str(filename).strip()
+            if not filename:
+                continue
+
+            # optional tweak from legacy: append -001 to WorkingGroup if present
+            if row.get("WorkingGroup"):
+                row["WorkingGroup"] = f"{row['WorkingGroup']}-001"
+
+            segments: List[str] = []
+            for f in hierarchy_fields:
+                if row.get(f, "").strip():
+                    segments.append(row[f].strip())
+
+            dataset_id = "/".join([collection] + segments) if segments else collection
+            file_id = f"{dataset_id}/{filename}"
+
+            record = dict(row)
+            record["DatasetId"] = dataset_id
+            record["CollectionId"] = collection
+            # Ensure CollectionName is present for downstream Solr requirements
+            if not record.get("CollectionName"):
+                record["CollectionName"] = collection
+            # Ensure DatasetName is present; use the immediate parent folder (last segment of DatasetId)
+            if not record.get("DatasetName"):
+                record["DatasetName"] = dataset_id.split("/")[-1] if dataset_id else ""
+            # Ensure DatasetVersion is present for Solr; default to '1'
+            if not record.get("DatasetVersion"):
+                record["DatasetVersion"] = "1"
+            record["FileName"] = filename
+            record["file_id"] = file_id
+
+            out_rows.append(record)
+
+    return out_rows
+
+def write_cfgs(files: List[Dict], output_dir: str) -> None:
+    """Write dataset-level cfgs down the hierarchy and a file-level cfg per file.
+
+    This does not copy/move actual data. Output is under output_dir/Collection/...
+    """
+    root = Path(output_dir)
+    for rec in files:
+        dataset_id = _coerce_str(rec.get("DatasetId", ""))
+        filename = _coerce_str(rec.get("FileName", "")).strip()
+        if not dataset_id or not filename:
+            # Skip malformed entries
+            continue
+
+        parts = dataset_id.split("/") + [filename]
+
+        # Dataset fields exclude the file name
+        ds_fields = dict(rec)
+        ds_fields.pop("FileName", None)
+        ds_fields.pop("New FCSC ILS Filename", None)
+
+        # Build the [File] cfg once
+        file_cfg = "[File]\n"
+        # Ensure an explicit id for file docs; many publish paths expect it
+        file_cfg += f"id={_coerce_str(rec.get('file_id', ''))}\n"
+        for k in ds_fields:
+            if k == "file_id":
+                continue
+            v = _coerce_str(rec.get(k, ""))
+            if v != "":
+                file_cfg += f"{k}={v}\n"
+
+        # Write dataset cfgs for each path component
+        for i in range(0, len(parts) - 1):
+            ds_dir = root.joinpath(*parts[0 : i + 1])
+            ds_dir.mkdir(parents=True, exist_ok=True)
+
+            # Build per-level dataset fields and ensure DatasetName reflects this level
+            local_ds_fields = dict(ds_fields)
+            local_ds_fields["id"] = str(ds_dir)
+            local_ds_fields["DatasetName"] = parts[i]
+
+            ds_cfg = "[Dataset]\n"
+            for k in local_ds_fields:
+                v = _coerce_str(local_ds_fields.get(k, ""))
+                if v != "":
+                    ds_cfg += f"{k}={v}\n"
+
+            cfg_path = ds_dir / f"{parts[i]}.cfg"
+            with cfg_path.open("w", encoding="utf-8") as fh:
+                fh.write(ds_cfg)
+
+        # Finally, write the file-level cfg in the deepest dataset directory
+        deepest_dir = root.joinpath(*parts[:-1])
+        deepest_dir.mkdir(parents=True, exist_ok=True)
+        file_cfg_path = deepest_dir / f"{filename}.cfg"
+        with file_cfg_path.open("w", encoding="utf-8") as fh:
+            fh.write(file_cfg)
+
+# --- End added section ---
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Parse Flow Cytometry WG1/2/3 sheets to LabCAS cfgs")
+    parser.add_argument("--input-dir", default="/data/raw", help="Directory containing WG*.xlsx files (mounted at /data/raw)")
+    parser.add_argument("--output-dir", default="/metadata", help="Directory to write cfgs (mounted at /metadata)")
+    parser.add_argument("--collection", default="fcs_interlab_study", help="Collection name for dataset hierarchy")
+    args = parser.parse_args()
+
+    files = parse_flow_wg_from_dir(args.input_dir, collection=args.collection)
+    # Ensure output dir exists
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    write_cfgs(files, args.output_dir)
+    print(f"Wrote cfgs for {len(files)} files under {args.output_dir}")
 
 root_metadata_path = "metadata"
 
@@ -14,100 +184,12 @@ def replaceMultiple(s, unwanted, input_char):
 
 
 def flow_cyt_parser():
-    #Flow cytometry - choose one of the below to parse, not both
-    #file_list = ["/Users/Programmer/Documents/Projects/NIST/NIST_data/Flow Cytometry Collection/wg2-ver5-all.xlsx", "/Users/Programmer/Documents/Projects/NIST/NIST_data/Flow Cytometry Collection/wg1-ver5-all.xlsx"]
-    #file_list = ["/Users/Programmer/Documents/Projects/NIST/NIST_data/Flow Cytometry Collection/WG2part2Table.xlsx", "/Users/Programmer/Documents/Projects/NIST/NIST_data/Flow Cytometry Collection/WG1part2Table.xlsx"]
-    file_list = ["/Users/Programmer/Documents/Projects/NIST/NIST_data/Flow Cytometry Collection/FCSC ILS Upload 3/WG2part3Table.xlsx", "/Users/Programmer/Documents/Projects/NIST/NIST_data/Flow Cytometry Collection/FCSC ILS Upload 3/WG1part3Table.xlsx"]
+    """Deprecated wrapper retained for compatibility.
 
-    collections = ["fcs_interlab_study","Genomics_Editing_Consortium","cell_line_provenance"]
-    collection_id = 0
-
-    count = 0
-
-    dataasets = {}
-    files = []
-
-    for file in file_list:
-        sheet = "Sheet1"
-
-        excel_data_df = pandas.read_excel(file, sheet_name=sheet)
-
-        result = excel_data_df.to_json(orient="records")
-        data = json.loads(result)
-        # print whole sheet data
-        #print data
-
-
-
-        for l in data:
-            dataset = {}
-            if l["New FCSC ILS Filename"]:
-                count += 1
-
-                #Datasets
-                dataset_id = collections[collection_id]
-                #for d in [l["WorkingGroup"],l["InstrumentCode"],l["SiteCode"],l["ProtocolID"]]:
-                for d in [l["WorkingGroup"],l["InstrumentCode"],l["SiteCode"],l["ProtocolID"],l["ExperimentType"],l["SampleName"],l["PrincipleContactID"],l["DataProcessingLevel"],l["StudyID"],l["MaterialCode"],l["ExperimentID"],str(l["ReplicateNumber"]),l["DataFormat"]]:
-                    dataset_id += "/"+d.encode('ascii', errors='ignore').decode()
-                    modified_l = l.copy()
-
-                    modified_l["id"] = dataset_id
-                    modified_l["DatasetName"] = d
-                    modified_l["CollectionId"] = collections[collection_id]
-                    modified_l["WorkingGroup"] = l["WorkingGroup"]+"-001"
-
-                    #String replace invalid characters
-                    for k, v in modified_l.iteritems():
-                        if(isinstance(v, int)):
-                            v = str(v)
-                        modified_l[k] = v.encode('utf-8')
-
-                    dataasets[dataset_id] = modified_l
-
-                #Files
-                #file_id = "/".join([collections[collection_id],l["WorkingGroup"],l["InstrumentCode"],l["SiteCode"],l["ProtocolID"],str(l["FCSC ILS Filename"])])
-                new_fileid_list = []
-                for val in l.values():
-                    if type(val) == int:
-                        new_fileid_list.append(replaceMultiple(str(val), replaced_chars, "_"))
-                    else:
-                        new_fileid_list.append(replaceMultiple(val.encode('ascii', errors='ignore').decode(), replaced_chars, "_"))
-
-                file_id = "/".join([collections[collection_id]]+new_fileid_list)
-                print ("file_id")
-                print (file_id)
-
-                dataset_id = "/".join([collections[collection_id],l["WorkingGroup"],l["InstrumentCode"],l["SiteCode"],l["ProtocolID"],l["ExperimentType"],l["SampleName"],l["PrincipleContactID"],l["DataProcessingLevel"],l["StudyID"],l["MaterialCode"],l["ExperimentID"],str(l["ReplicateNumber"]),l["DataFormat"]])
-                modified_l = l.copy()
-
-                modified_l["id"] = file_id
-                modified_l["file_id"] = file_id
-                if l["New FCSC ILS Filename"]  or l["New FCSC ILS Filename"].strip()  != "":
-                    modified_l["FileName"] = l["New FCSC ILS Filename"]
-                else:
-                    modified_l["FileName"] = "None"
-
-                modified_l["DatasetId"] = dataset_id
-                modified_l["CollectionId"] = collections[collection_id]
-                modified_l["WorkingGroup"] = l["WorkingGroup"]+"-001"
-
-                #String replace invalid characters
-                for k, v in modified_l.iteritems():
-                    if(isinstance(v, int)):
-                        v = str(v)
-                    #modified_l[k] = replaceMultiple(v.encode('utf-8'), replaced_chars, "_")
-                    modified_l[k] = v.encode('ascii', errors='ignore').decode()
-                files.append(modified_l)
-
-        with open(collections[collection_id]+"-datasets.txt", "wb") as d_inp:
-            #print list(dataasets.values())
-            d_inp.write(json.dumps(list(dataasets.values())))
-
-        with open(collections[collection_id]+"-files.txt", "wb") as f_inp:
-            f_inp.write(json.dumps(files))
-
-
-    return files
+    Parses WG1/2/3 spreadsheets from /data/raw and returns file records.
+    Use the CLI or parse_flow_wg_from_dir directly instead.
+    """
+    return parse_flow_wg_from_dir("/data/raw", collection="fcs_interlab_study")
 def cell_provenance():
     #Flow cytometry - choose one of the below to parse, not both
     #file_list = ["/Users/Programmer/Documents/Projects/Labcas/labcas-data/NIST/Cell Lines/Cellline provenance metadata and data20230417031610/VCN provenance table JPL 02232023(john.elliott@nist.gov).xlsx"]
@@ -2186,6 +2268,7 @@ def genome_parser_twin():
 #generate_metadata(genome_parser_bion(), root_metadata_path, "Genomics_Editing_Consortium")
 #generate_metadata(genome_parser_cobo(), root_metadata_path, "Genomics_Editing_Consortium")
 #generate_metadata(genome_parser_anon(), root_metadata_path, "Genomics_Editing_Consortium")
-generate_metadata(genome_parser_mission(), root_metadata_path, "Genomics_Editing_Consortium")
-#generate_metadata(cell_provenance(), root_metadata_path, "cell_line_provenance")
-#generate_metadata(flow_cyt_parser(), root_metadata_path, "fcs_interlab_study")
+# Note: Legacy self-invocation disabled. Use CLI entrypoint above instead.
+# generate_metadata(genome_parser_mission(), root_metadata_path, "Genomics_Editing_Consortium")
+# generate_metadata(cell_provenance(), root_metadata_path, "cell_line_provenance")
+# generate_metadata(flow_cyt_parser(), root_metadata_path, "fcs_interlab_study")
