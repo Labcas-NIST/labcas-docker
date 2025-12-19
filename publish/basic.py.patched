@@ -13,7 +13,7 @@ publish_id = os.getenv('publish_id') or os.getenv('PUBLISH_ID') or None
 steps = (os.getenv('steps') or os.getenv('PUBLISH_STEPS', 'crawl,publish')).split(',')
 
 # Paths (inside publish container)
-archive_dir = '/data/archive'
+archive_dir = '/data/archive/' + consortium.lower()
 thumbnails_dir = archive_dir.replace('archive', 'thumbnails')
 pathlib.Path(thumbnails_dir).mkdir(parents=True, exist_ok=True)
 
@@ -42,4 +42,3 @@ generate_header = True
 
 # Mapping used in some flows (unused here)
 disk_to_s3_mapping = {}
-
