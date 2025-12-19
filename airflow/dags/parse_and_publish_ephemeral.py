@@ -66,18 +66,6 @@ with DAG(
         ),
     )
 
-    # Copy the ephemeral cfg into /metadata so the publish container sees it at /mnt/metadata
-    sync_to_metadata = BashOperator(
-        task_id="sync_to_metadata",
-        bash_command=(
-            "set -euo pipefail; "
-            f"src=/data/staging/{ephemeral_collection}/{ephemeral_collection}.cfg; "
-            f"dst_dir=/metadata/{ephemeral_collection}; mkdir -p \"$dst_dir\"; "
-            f"cp -f \"$src\" \"$dst_dir/\"; "
-            "echo 'Copied ephemeral cfg to /metadata'"
-        ),
-    )
-
     # Wait for Solr to be ready before launching the ephemeral publish container.
     # This avoids transient failures where the backend container is up but Solr
     # has not finished binding to 8984 yet.
@@ -115,8 +103,8 @@ with DAG(
     publish_ephemeral = DockerOperator(
         task_id="publish_ephemeral",
         image="labcas-docker-clean-publish",
-        entrypoint="/bin/bash",
-        command=f"-lc 'mkdir -p /data/archive/nist/{ephemeral_collection} && python3 /opt/publish/publishing_pipeline.py'",
+        entrypoint="python3",
+        command="/opt/publish/publishing_pipeline.py",
         force_pull=False,
         auto_remove=True,
         mount_tmp_dir=False,
@@ -182,4 +170,4 @@ with DAG(
     )
 
     # Pipeline
-    parse_task >> snapshot_before >> prepare_ephemeral_cfg >> sync_to_metadata >> wait_solr >> publish_ephemeral >> post_solr_marker >> snapshot_after
+    parse_task >> snapshot_before >> prepare_ephemeral_cfg >> wait_solr >> publish_ephemeral >> post_solr_marker >> snapshot_after
