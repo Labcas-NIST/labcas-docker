@@ -180,31 +180,6 @@ def write_cfgs(files: List[Dict], output_dir: Path) -> None:
             fh.write(file_cfg)
 
 
-def write_collection_cfg(output_dir: Path, collection: str) -> None:
-    """Write a collection-level cfg under output_dir/<collection>/<collection>.cfg.
-
-    The fields are provided by NIST for the Flow Cytometry Standards Consortium.
-    """
-    root_dir = output_dir / collection
-    root_dir.mkdir(parents=True, exist_ok=True)
-    cfg_path = root_dir / f"{collection}.cfg"
-
-    lines = [
-        "[Collection]",
-        "CollectionName=NIST Flow Cytometry Standards Consortium",
-        "CollectionDescription=Flow Cytometry Stand... More",
-        "PrincipalContactName=Lili Wang",
-        "PrincipalContactEmail=lili.wang@nist.gov",
-        "DataCustodianName=John Elliott",
-        "DataCustodianEmail=john.elliott@nist.gov",
-        "AssociatedConsortium=NIST Flow Cytometry Standards Consortium",
-        "DataCategory=Interlab",
-    ]
-
-    with cfg_path.open("w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines) + "\n")
-
-
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Parse NIST Flow Cytometry WG1/2/3 spreadsheets to LabCAS cfgs",
@@ -221,11 +196,10 @@ def main(argv: List[str] | None = None) -> int:
     files = parse(Path(args.input_dir), collection=args.collection)
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     write_cfgs(files, Path(args.output_dir))
-    # Also write a collection-level cfg with static metadata provided by NIST
-    write_collection_cfg(Path(args.output_dir), args.collection)
     LOG.info("Wrote cfgs for %d files under %s", len(files), args.output_dir)
     return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
+
