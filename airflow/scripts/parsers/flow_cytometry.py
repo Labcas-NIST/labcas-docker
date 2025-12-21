@@ -16,6 +16,7 @@ import argparse
 import logging
 from pathlib import Path
 from typing import Dict, Iterable, List
+import json
 
 import pandas as pd
 
@@ -180,6 +181,152 @@ def write_cfgs(files: List[Dict], output_dir: Path) -> None:
             fh.write(file_cfg)
 
 
+def write_collection_root_artifacts(output_dir: Path, collection: str) -> None:
+    """Write collection-level cfg and json at output_dir/<collection>/.
+
+    The metadata is tailored for the NIST Flow Cytometry Standards Consortium
+    so the publish crawler can pick up and publish a collections document.
+    """
+    root_dir = output_dir / collection
+    root_dir.mkdir(parents=True, exist_ok=True)
+
+    # Canonical collection identifiers (do not change directory name)
+    coll_id = "NIST_Flow_Cytometry_Standards_Consortium"
+    description = (
+        "Flow Cytometry Standards Consortium Interlaboratory Study -  WG1 and WG2 data"
+    )
+
+    data: Dict[str, object] = {
+        "DatasetVersion": ["1"],
+        "SubmittingInstitutuionID": ["NIST"],
+        "AssayType": ["Flow Cytometry"],
+        "SampleName": [
+            "CellSample2-AllCellsDonor2-Lot3066774",
+            "ERF-Bead",
+            "CellSample3-AllCellsDonor3-Lot3069118",
+            "ERF-FC-Bead",
+            "Matrix-3",
+            "Matrix-1",
+            "FMO-Cell",
+            "Synthetic-Cell",
+            "Matrix-2",
+            "8-Peak-Bead",
+            "CellSample1-AllCellsDonor1-Lot3063593",
+            "Test-Cell",
+        ],
+        "StudyID": ["FCSC_WG2-001", "FCSC_WG1-001"],
+        "DatasetName": [coll_id],
+        "SubmittingInvestigatorID": ["John Elliott"],
+        "DataFormat": ["FCS"],
+        "MaterialCode": [
+            "PE-bead",
+            "PerCP-Cy5.5-lyoPBMC-cell",
+            "DQC-bead",
+            "APC-Cy7-bead",
+            "URBmix-bead",
+            "V450-bead",
+            "PE-lyoPBMC-cell",
+            "PE-Cy7-lyoPBMC-cell",
+            "FITC-lyoPBMC-cell",
+            "PE-Cy7-bead",
+            "V500C-bead",
+            "FITC-bead",
+            "APC-Cy7-lyoPBMC-cell",
+            "APC-lyoPBMC-cell",
+            "APC-bead",
+            "panel1-TruCytes",
+            "PerCP-Cy5.5-bead",
+            "V450-lyoPBMC-cell",
+            "ACmix-bead",
+            "V500C-lyoPBMC-cell",
+        ],
+        "ExperimentID": ["e3", "e2", "e4", "e1"],
+        "FileType": ["excel", "flow cytometry standard", "zip", "pdf", "Unknown"],
+        "ExperimentType": [
+            "Compensation-Control",
+            "FMO-Control",
+            "Test-Sample",
+            "Calibration-And-Standardization",
+            "Bead-Sample",
+            "QC-Sample",
+            "Cell-Sample",
+        ],
+        "CollectionName": "NIST Flow Cytometry Standards Consortium",
+        "ReplicateNumber": ["3", "2", "1"],
+        "SiteID": ["NIST"],
+        "Study": [
+            "NIST Flow Cytometry Standards Consortium- WG2 Interlaboratory Study",
+            "NIST Flow Cytometry Standards Consortium- WG1 Interlaboratory Study",
+        ],
+        "WorkingGroup": ["WG2-001", "WG1-001"],
+        "SiteCode": [
+            "FDACBER",
+            "NISTGB-KP",
+            "Q2LabSol",
+            "BMSSeattle",
+            "LMNXSEA",
+            "WRAIR",
+            "ISAC",
+            "BMSWarren",
+            "SPHERO",
+            "AgilentSC",
+            "CellBio",
+            "TFS",
+            "AgilentSD",
+            "UDel",
+            "BCLS",
+            "SSBS",
+            "NISTGB-GC",
+            "AZGBBIO",
+            "BDSJ",
+            "NISTGB-LW",
+            "NIBSC",
+            "AZSSF",
+            "MSKCC",
+            "KITE",
+        ],
+        "ProtocolID": ["SOP-p1", "SOP-03", "SOP-02", "SOP-01"],
+        "DataProcessingLevel": ["Raw"],
+        "id": coll_id,
+        "labcasId": [coll_id],
+        "name": [coll_id],
+        "labcasName": [coll_id],
+        "CollectionDescription": description,
+        "LeadPoC": ["Lili Wang"],
+        "LeadPoCEmail": ["lili.wang@nist.gov"],
+        "StudyType": ["Interlab"],
+        "Discipline": ["Cytometry"],
+        "DataCustodian": ["John Elliott"],
+        "DataCustodianEmail": ["john.elliott@nist.gov"],
+        "OwnerPrincipal": [
+            "cn=All NIST,ou=groups,o=NIST",
+            "cn=Flow Cytometry Standards Consortium,ou=groups,o=NIST",
+        ],
+        "Consortium": ["NIST Flow Cytometry Standards Consortium"],
+        "Organism": ["Homo sapiens"],
+        "CollectionId": [coll_id],
+        "DatePublished": ["20_12_2024__10_25_36"],
+        "PublishId": ["20_12_2024__10_25_36"],
+        "labcas_node_type": ["collections"],
+        "DatasetId": [coll_id],
+    }
+
+    # Write CFG (lists joined by '|')
+    cfg_path = root_dir / f"{collection}.cfg"
+    lines = ["[Collection]"]
+    for k, v in data.items():
+        if isinstance(v, list):
+            lines.append(f"{k}={'|'.join(v)}")
+        else:
+            lines.append(f"{k}={v}")
+    cfg_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # Write JSON mirror for visibility/debugging
+    json_path = root_dir / f"{collection}.json"
+    with json_path.open("w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+
+
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Parse NIST Flow Cytometry WG1/2/3 spreadsheets to LabCAS cfgs",
@@ -194,12 +341,13 @@ def main(argv: List[str] | None = None) -> int:
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     files = parse(Path(args.input_dir), collection=args.collection)
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    write_cfgs(files, Path(args.output_dir))
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_cfgs(files, out_dir)
+    write_collection_root_artifacts(out_dir, args.collection)
     LOG.info("Wrote cfgs for %d files under %s", len(files), args.output_dir)
     return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-
