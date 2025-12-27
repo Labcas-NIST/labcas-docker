@@ -77,12 +77,48 @@ latest_run_id() {
     | awk -F '|' 'NR>2 && $2 ~ /manual__/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit 0}'
 }
 
+run_execution_date() {
+  local dag_id="$1"
+  local run_id="$2"
+  docker exec airflow bash -lc "airflow dags list-runs -d $dag_id --output json" \
+    | python3 -c 'import json,sys; run_id=sys.argv[1]; runs=json.load(sys.stdin); ed=[r.get("execution_date","") for r in runs if r.get("run_id")==run_id]; print(ed[0] if ed else ""); sys.exit(0 if ed else 1)' "$run_id"
+}
+
+run_info() {
+  local dag_id="$1"
+  local run_id="$2"
+  docker exec airflow bash -lc "airflow dags list-runs -d $dag_id --output json" \
+    | python3 -c 'import json,sys; run_id=sys.argv[1]; runs=json.load(sys.stdin); m=[r for r in runs if r.get("run_id")==run_id]; \
+print("{}|{}".format(m[0].get("execution_date",""), m[0].get("state","")) if m else ""); sys.exit(0 if m else 1)' "$run_id"
+}
+
 monitor_run() {
   local run_id="$1"
   local end=$((SECONDS + TIMEOUT))
+  local execution_date=""
+  local run_state=""
   while [ $SECONDS -lt $end ]; do
     local states
-    states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run nist_parse_and_publish $run_id")
+    local info
+    info=$(run_info nist_parse_and_publish "$run_id" || true)
+    if [ -n "$info" ]; then
+      execution_date="${info%%|*}"
+      run_state="${info#*|}"
+    fi
+    if [ -n "$run_state" ]; then
+      echo "DAG run state: $run_state"
+      if [ "$run_state" = "success" ]; then return 0; fi
+      if [ "$run_state" = "failed" ]; then return 1; fi
+      if [ "$run_state" = "queued" ]; then sleep 10; continue; fi
+    fi
+    if [ -z "$execution_date" ]; then
+      execution_date=$(run_execution_date nist_parse_and_publish "$run_id" || true)
+    fi
+    if [ -n "$execution_date" ]; then
+      states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run nist_parse_and_publish $execution_date")
+    else
+      states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run nist_parse_and_publish $run_id")
+    fi
     echo "$states" | sed -n '1,8p'
     if echo "$states" | grep -Eq "publish_metadata\s+\|\s+success"; then
       echo "publish done"; return 0
@@ -98,9 +134,30 @@ monitor_run() {
 monitor_ephemeral() {
   local run_id="$1"
   local end=$((SECONDS + TIMEOUT))
+  local execution_date=""
+  local run_state=""
   while [ $SECONDS -lt $end ]; do
     local states
-    states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run parse_and_publish_ephemeral $run_id")
+    local info
+    info=$(run_info parse_and_publish_ephemeral "$run_id" || true)
+    if [ -n "$info" ]; then
+      execution_date="${info%%|*}"
+      run_state="${info#*|}"
+    fi
+    if [ -n "$run_state" ]; then
+      echo "DAG run state: $run_state"
+      if [ "$run_state" = "success" ]; then return 0; fi
+      if [ "$run_state" = "failed" ]; then return 1; fi
+      if [ "$run_state" = "queued" ]; then sleep 10; continue; fi
+    fi
+    if [ -z "$execution_date" ]; then
+      execution_date=$(run_execution_date parse_and_publish_ephemeral "$run_id" || true)
+    fi
+    if [ -n "$execution_date" ]; then
+      states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run parse_and_publish_ephemeral $execution_date")
+    else
+      states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run parse_and_publish_ephemeral $run_id")
+    fi
     echo "$states" | sed -n '1,10p'
     if echo "$states" | grep -Eq "publish_ephemeral\s+\|\s+success"; then
       echo "ephemeral publish done"; return 0
