@@ -99,6 +99,7 @@ with DAG(
         task_id="publish_files_only",
         bash_command=(
             "set -euo pipefail; "
+            "if [ \"${RUN_PUBLISH_FILES_ONLY:-false}\" != \"true\" ]; then echo 'publish_files_only disabled'; exit 0; fi; "
             # Use the path where publish writes generated JSONs
             "COL_DIR=/data/generated_metadata/nist/fcs_interlab_study; "
             "PID=$(find \"$COL_DIR\" -type f -name '*_labcasmet_*.json' | awk -F'_labcasmet_' '{print $2}' | awk -F'.json' '{print $1}' | sort | tail -n 1); "
@@ -114,6 +115,7 @@ with DAG(
         env={
             "PUBLISH_CONSORTIUM": os.getenv("PUBLISH_CONSORTIUM", "NIST"),
             "PUBLISH_COLLECTION": os.getenv("PUBLISH_COLLECTION", "fcs_interlab_study"),
+            "RUN_PUBLISH_FILES_ONLY": os.getenv("RUN_PUBLISH_FILES_ONLY", "false"),
             "BASIC_AUTH_USER": basic_auth_user,
             "BASIC_AUTH_PASS": basic_auth_pass,
         },
