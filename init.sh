@@ -20,7 +20,10 @@ COLLECTION=${PUBLISH_COLLECTION:-fcs_interlab_study}
 STEPS=${PUBLISH_STEPS:-crawl,publish}
 AUTH_USER=${BASIC_AUTH_USER:-dliu}
 AUTH_PASS=${BASIC_AUTH_PASS:-secret}
-TIMEOUT=${TIMEOUT_SECONDS:-900}
+TIMEOUT=${TIMEOUT_SECONDS:-3600}
+BUILD_CACHE_SUMMARY=""
+BUILD_USED_NO_CACHE=0
+QUEUED_SEEN=0
 
 # Predictable run id so we can monitor only the run we trigger (avoids scheduled runs)
 NOW_UTC=$(date -u +%Y-%m-%dT%H:%M:%S%z)
@@ -38,6 +41,31 @@ compose() {
 
 require() {
   command -v "$1" >/dev/null 2>&1 || { echo "Missing required command: $1" >&2; exit 1; }
+}
+
+check_build_cache() {
+  local total reclaimable
+  if ! docker buildx du >/tmp/buildx_du.txt 2>/dev/null; then
+    BUILD_CACHE_SUMMARY="Build cache check skipped (buildx not available)"
+    return 0
+  fi
+  total=$(awk '/^Total:/ {print $2}' /tmp/buildx_du.txt)
+  reclaimable=$(awk '/^Reclaimable:/ {print $2}' /tmp/buildx_du.txt)
+  if [ -n "$total" ] && [ "$total" != "0B" ] && [ "$total" != "0" ]; then
+    if [ "$BUILD_USED_NO_CACHE" = "1" ]; then
+      BUILD_CACHE_SUMMARY="Build cache present (global): Total=$total, Reclaimable=$reclaimable. This run used --no-cache; cache may be from other builds."
+    else
+      BUILD_CACHE_SUMMARY="Build cache present (global): Total=$total, Reclaimable=$reclaimable. Tip: use 'docker compose build --no-cache labcas-ui' if you need the latest UI sources."
+    fi
+  else
+    BUILD_CACHE_SUMMARY="Build cache empty: Total=${total:-0B}, Reclaimable=${reclaimable:-0B}"
+  fi
+}
+
+print_build_cache_summary() {
+  if [ -n "$BUILD_CACHE_SUMMARY" ]; then
+    echo "$BUILD_CACHE_SUMMARY"
+  fi
 }
 
 wait_airflow() {
@@ -92,11 +120,36 @@ run_info() {
 print("{}|{}".format(m[0].get("execution_date",""), m[0].get("state","")) if m else ""); sys.exit(0 if m else 1)' "$run_id"
 }
 
+print_queue_diagnostics() {
+  local dag_id="$1"
+  echo "Queued diagnostics for $dag_id:"
+  docker exec airflow bash -lc "airflow dags list-runs -d $dag_id --output json" \
+    | python3 -c 'import json,sys; runs=json.load(sys.stdin); \
+running=[r for r in runs if r.get("state")=="running"]; \
+queued=[r for r in runs if r.get("state")=="queued"]; \
+print("Active running runs:"); \
+print("\\n".join(["  {0} | {1} | {2}".format(r.get("run_id"), r.get("execution_date"), r.get("start_date")) for r in running]) or "  (none)"); \
+print("Queued runs:"); \
+print("\\n".join(["  {0} | {1}".format(r.get("run_id"), r.get("execution_date")) for r in queued]) or "  (none)")' || true
+  if docker exec airflow bash -lc "command -v ps >/dev/null 2>&1"; then
+    docker exec airflow bash -lc "ps -ef | grep -E 'airflow (scheduler|webserver|triggerer)' | grep -v grep || true"
+  else
+    echo "Scheduler process check skipped (ps not available)"
+  fi
+  if ! docker exec airflow bash -lc "airflow jobs list --job-type SchedulerJob --limit 5" >/dev/null 2>&1; then
+    echo "Scheduler job list not supported; using airflow jobs check:"
+    docker exec airflow bash -lc "airflow jobs check --job-type SchedulerJob || true"
+  else
+    docker exec airflow bash -lc "airflow jobs list --job-type SchedulerJob --limit 5 || true"
+  fi
+}
+
 monitor_run() {
   local run_id="$1"
   local end=$((SECONDS + TIMEOUT))
   local execution_date=""
   local run_state=""
+  local queued_checks=0
   while [ $SECONDS -lt $end ]; do
     local states
     local info
@@ -109,8 +162,16 @@ monitor_run() {
       echo "DAG run state: $run_state"
       if [ "$run_state" = "success" ]; then return 0; fi
       if [ "$run_state" = "failed" ]; then return 1; fi
-      if [ "$run_state" = "queued" ]; then sleep 10; continue; fi
+      if [ "$run_state" = "queued" ]; then
+        QUEUED_SEEN=1
+        queued_checks=$((queued_checks + 1))
+        if [ "$queued_checks" -eq 3 ] || [ $((queued_checks % 6)) -eq 0 ]; then
+          print_queue_diagnostics nist_parse_and_publish
+        fi
+        sleep 10; continue;
+      fi
     fi
+    queued_checks=0
     if [ -z "$execution_date" ]; then
       execution_date=$(run_execution_date nist_parse_and_publish "$run_id" || true)
     fi
@@ -128,7 +189,9 @@ monitor_run() {
     fi
     sleep 10
   done
-  echo "Timed out waiting for publish to complete" >&2; return 2
+  echo "Timed out waiting for publish to complete" >&2
+  print_queue_diagnostics nist_parse_and_publish
+  return 2
 }
 
 monitor_ephemeral() {
@@ -136,6 +199,7 @@ monitor_ephemeral() {
   local end=$((SECONDS + TIMEOUT))
   local execution_date=""
   local run_state=""
+  local queued_checks=0
   while [ $SECONDS -lt $end ]; do
     local states
     local info
@@ -148,8 +212,16 @@ monitor_ephemeral() {
       echo "DAG run state: $run_state"
       if [ "$run_state" = "success" ]; then return 0; fi
       if [ "$run_state" = "failed" ]; then return 1; fi
-      if [ "$run_state" = "queued" ]; then sleep 10; continue; fi
+      if [ "$run_state" = "queued" ]; then
+        QUEUED_SEEN=1
+        queued_checks=$((queued_checks + 1))
+        if [ "$queued_checks" -eq 3 ] || [ $((queued_checks % 6)) -eq 0 ]; then
+          print_queue_diagnostics parse_and_publish_ephemeral
+        fi
+        sleep 10; continue;
+      fi
     fi
+    queued_checks=0
     if [ -z "$execution_date" ]; then
       execution_date=$(run_execution_date parse_and_publish_ephemeral "$run_id" || true)
     fi
@@ -167,7 +239,9 @@ monitor_ephemeral() {
     fi
     sleep 10
   done
-  echo "Timed out waiting for ephemeral publish to complete" >&2; return 2
+  echo "Timed out waiting for ephemeral publish to complete" >&2
+  print_queue_diagnostics parse_and_publish_ephemeral
+  return 2
 }
 
 print_counts() {
@@ -187,9 +261,12 @@ main() {
   require curl
   mkdir -p metadata data/archive data/logs || true
 
+  check_build_cache
+
   if [ "${SKIP_BUILD:-0}" != "1" ]; then
+    BUILD_USED_NO_CACHE=1
     echo "Building images..."
-    compose build --pull publish airflow labcas-backend labcas-ui labcas-proxy
+    compose build --pull --no-cache publish airflow labcas-backend labcas-ui labcas-proxy
   else
     echo "Skipping image build (SKIP_BUILD=$SKIP_BUILD)"
   fi
@@ -216,6 +293,8 @@ main() {
       echo "Monitoring ephemeral run: $E_RUN_ID"
       monitor_ephemeral "$E_RUN_ID" || true
     fi
+    print_queue_diagnostics nist_parse_and_publish
+    print_build_cache_summary
     exit 0
   else
     # Print failure context
@@ -223,6 +302,8 @@ main() {
     echo "Publish failed. Log tail (if available):"
     [ -f "$logdir/attempt=1.log" ] && tail -n 200 "$logdir/attempt=1.log" || true
     print_counts
+    print_queue_diagnostics nist_parse_and_publish
+    print_build_cache_summary
     exit 1
   fi
 }
