@@ -1,0 +1,13 @@
+﻿Text,Permissible Values,Value,Definition,Requirement,Data Type,FileLevelColumnDisplay,Inheritance,Explanatory Note,Information Sheet
+InstrumentID,,Bruker MALDI Biotyper,MALDI Instrument Name,Required,String,,,,MALDI: Instrument
+DatabaseVersion,,Bruker Biotyper Library,Version of Bruker Database Used for ID,Required,String,,,,MALDI: Database
+Identification,,Escherichia coli,Best Identification,Required,String,,,,MALDI: Identification
+Replicate1_ID1,,Escherichia coli,,Optional,String,,,,MALDI: Table
+Replicate1_LogScore1,,2.39,,Optional,Numeric,,,,MALDI: Table
+Replicate1_ID2,,Escherichia coli,,Optional,String,,,,MALDI: Table
+Replicate1_LogScore2,,2.38,,Optional,Numeric,,,,MALDI: Table
+Replicate2_ID1,,Escherichia coli,,Optional,String,,,,MALDI: Table
+Replicate2_LogScore1,,2.2,,Optional,Numeric,,,,MALDI: Table
+Replicate2_ID2,,Escherichia coli,,Optional,String,,,,MALDI: Table
+Replicate2_LogScore2,,2.19,,Optional,Numeric,,,,MALDI: Table
+OutputFile,,MALDI_20250917_NIST0056_Ecoli.pdf,,Optional,File,,,,MALDI: Table

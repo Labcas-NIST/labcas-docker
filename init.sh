@@ -30,6 +30,8 @@ NOW_UTC=$(date -u +%Y-%m-%dT%H:%M:%S%z)
 RUN_ID="manual__${NOW_UTC}"
 E_NOW_UTC=$(date -u +%Y-%m-%dT%H:%M:%S%z)
 E_RUN_ID="manual__ephemeral__${E_NOW_UTC}"
+M_NOW_UTC=$(date -u +%Y-%m-%dT%H:%M:%S%z)
+M_RUN_ID="manual__microbial__${M_NOW_UTC}"
 
 compose() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -96,6 +98,11 @@ wait_publish() {
 trigger_dag() {
   docker exec airflow bash -lc "airflow dags unpause nist_parse_and_publish || true"
   docker exec airflow bash -lc "airflow dags trigger -r '$RUN_ID' nist_parse_and_publish" | sed -n '1,3p'
+}
+
+trigger_microbial_dag() {
+  docker exec airflow bash -lc "airflow dags unpause microbial_strain_parse_and_publish || true"
+  docker exec airflow bash -lc "airflow dags trigger -r '$M_RUN_ID' microbial_strain_parse_and_publish" | sed -n '1,3p'
 }
 
 latest_run_id() {
@@ -244,6 +251,56 @@ monitor_ephemeral() {
   return 2
 }
 
+monitor_microbial() {
+  local run_id="$1"
+  local end=$((SECONDS + TIMEOUT))
+  local execution_date=""
+  local run_state=""
+  local queued_checks=0
+  while [ $SECONDS -lt $end ]; do
+    local states
+    local info
+    info=$(run_info microbial_strain_parse_and_publish "$run_id" || true)
+    if [ -n "$info" ]; then
+      execution_date="${info%%|*}"
+      run_state="${info#*|}"
+    fi
+    if [ -n "$run_state" ]; then
+      echo "DAG run state: $run_state"
+      if [ "$run_state" = "success" ]; then return 0; fi
+      if [ "$run_state" = "failed" ]; then return 1; fi
+      if [ "$run_state" = "queued" ]; then
+        QUEUED_SEEN=1
+        queued_checks=$((queued_checks + 1))
+        if [ "$queued_checks" -eq 3 ] || [ $((queued_checks % 6)) -eq 0 ]; then
+          print_queue_diagnostics microbial_strain_parse_and_publish
+        fi
+        sleep 10; continue;
+      fi
+    fi
+    queued_checks=0
+    if [ -z "$execution_date" ]; then
+      execution_date=$(run_execution_date microbial_strain_parse_and_publish "$run_id" || true)
+    fi
+    if [ -n "$execution_date" ]; then
+      states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run microbial_strain_parse_and_publish $execution_date")
+    else
+      states=$(docker exec airflow bash -lc "airflow tasks states-for-dag-run microbial_strain_parse_and_publish $run_id")
+    fi
+    echo "$states" | sed -n '1,8p'
+    if echo "$states" | grep -Eq "publish_metadata\s+\|\s+success"; then
+      echo "microbial publish done"; return 0
+    fi
+    if echo "$states" | grep -Eq "publish_metadata\s+\|\s+failed"; then
+      echo "microbial publish failed"; return 1
+    fi
+    sleep 10
+  done
+  echo "Timed out waiting for microbial publish to complete" >&2
+  print_queue_diagnostics microbial_strain_parse_and_publish
+  return 2
+}
+
 print_counts() {
   local auth
   auth=$(printf '%s:%s' "$AUTH_USER" "$AUTH_PASS" | base64)
@@ -284,6 +341,18 @@ main() {
   run_id=$(latest_run_id)
   echo "Monitoring run: $run_id"
   if monitor_run "$run_id"; then
+    echo "Triggering DAG microbial_strain_parse_and_publish..."
+    trigger_microbial_dag
+    sleep 3
+    echo "Monitoring microbial run: $M_RUN_ID"
+    if ! monitor_microbial "$M_RUN_ID"; then
+      logdir="airflow/logs/dag_id=microbial_strain_parse_and_publish/run_id=${M_RUN_ID}/task_id=publish_metadata"
+      echo "Microbial publish failed. Log tail (if available):"
+      [ -f "$logdir/attempt=1.log" ] && tail -n 200 "$logdir/attempt=1.log" || true
+      print_queue_diagnostics microbial_strain_parse_and_publish
+      print_build_cache_summary
+      exit 1
+    fi
     print_counts
     echo "Done."
     if [ "${RUN_EPHEMERAL:-0}" = "1" ]; then

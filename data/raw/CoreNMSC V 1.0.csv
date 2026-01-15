@@ -1,0 +1,42 @@
+﻿Text,Permissible Values,Value,Definition,Requirement,Data Type,FileLevelColumnDisplay,Inheritance,Explanatory Note,Information Sheet
+MicrobialMaterialID,,NIST 0056,Cell material used in experiment as named in the eLabFTW database (linked item),Required,String,,,,Subtitle
+MicrobialClass,Bacteria,Bacteria,Strain domain type,Required,String,,,,Provenance: Category
+,Fungus,,,,,,,,
+,Sample,,,,,,,,
+,Other,,,,,,,,
+IsolatePOC,,Edward Dudley,Point of Contact for isolate source,Required,String,,,,"Provenance: Depositor (x, )"
+IsolatePOCEmail,,egd100@psu.edu,Point of Contact for isolate source email,Required,String,,,,
+MaterialSourceOrg,,The Pennsylvania State University,Organization from which isolate was collected,Required,String,,,,"Provenance: Depositor ( ,y)"
+MaterialSourceMailingAddress,,,Mailing address of organization from which isolate was collected,Optional,String,,,,
+Common Rule for Protection of Human Subjects,"The isolate was not collected from a human subject within the meaning of the Common Rule, 15 CFR Part 27.","The isolate was not collected from a human subject within the meaning of the Common Rule, 15 CFR Part 27.","To ensure compliance with 15 CFR Part 27 (the Common Rule for Protection of Human Subjects applicable to NIST, an agency of the Department of Commerce) and other relevant statutes, regulations and Presidential statements of Policy, Depositor certifies that:",Optional,String,,,,
+,"The isolate was collected from a human subject within the meaning of the Common Rule, 15 CFR Part 27.",,,,,,,,
+Animal Welfare Act ,"The isolate was not collected from a live vertebrate animal within the meaning of 7 USC § 2131 et seq. and 9 CFR Parts 1, 2, and 3.","The isolate was not collected from a live vertebrate animal within the meaning of 7 USC § 2131 et seq. and 9 CFR Parts 1, 2, and 3.","To ensure compliance with the Animal Welfare Act as amended and implementing regulations (7 USC § 2131 et seq., 9 CFR Parts 1, 2, and 3), and other Federal statutes and regulations relating to a collection from a live vertebrate animal, Collaborator certifies that:",Optional,String,,,,
+,"The isolate was collected from a live vertebrate animal within the meaning of 7 USC § 2131 et seq. and 9 CFR Parts 1, 2, and 3.",,,,,,,,
+HumanPathogen,Yes,Definitely no,,Optional,String,,,,
+,Definitely no,,,,,,,,
+DataAcquisitionDate,,7/10/25,Date on which data were acquired according to eLabFTW record,Required,Date,,,,
+eLabsProtocolID,,,A UID generated for an eLabs record,Optional,String?,,,eLabs generated,
+IncubationDuration,,NA,Time in hours that cells were incubated during an experiment,Optional,Numeric,,,,
+IncubationTemperature,,37,Temperature (in oC) that cells were incubated in during an experiment,Optional,Numeric,,,,
+IncubationAgitation,,NA,Speed of agitation that cells were incubated during an experiment,Optional,Numeric,,,,
+IncubationAtmosphere,,NA,Atmosphere that cells were incubated during an experiment,Optional,String,,,,
+GrowthMediaName,,Lysogeny broth,Name of media used to culture cells (linked item),Optional,String,,,,
+DeliveryMode,,agar stab,How strain was shipped,Optional,String,,,,
+Genus,,Escherichia,,Optional,String,,,,
+Species,,coli,,Optional,String,,,,
+StrainName,,7.1994,,Optional,String,,,,Provenance: Strain
+LabIDCode,,7.1994,Lab Identification Code or Lab Designation,Optional,String,,,,
+IsolationDate,,6/1/07,Approximate Date of Isolation,Optional,String,,,,Provenance: Date of Isolation
+IsolationLocation,,"Missouri, USA","Geographic Location of Isolation (e.g., Baltimore, MD, USA)",Optional,String,,,,Provenance: Isolation location
+StrainOrigin,,Necropsied avian,Strain Origin,Optional,String,,,,Provenance: Isolation Source
+PureCulture,,Definitely Yes,Is This a Pure Culture? Check all that apply.,Optional,String,,,,
+IDMethod,,"Phenotypic (e.g., Biolog, API Strip, Microscopy, Selective Media)",Method(s) of Identification. Check all that apply.,Optional,String,,,,
+StrainConfidence,,"Moderately Confident. It's Probably the Correct Family or Genus, We have culture data, and serotyping, strongly indicating the species is correct",How Confident are You with the Strain Designation? Check all that apply.,Optional,String,,,,
+AntibioticResistance,,Definitely Maybe (haven't checked),Do You Believe this Strain is Resistant to One or More Antibiotics? Check all that apply.,Optional,String,,,,
+SequenceData,,"Yes, the genome sequence for this strain is in a public repository (e.g., NCBI RefSeq).","If Sequencing Data are Available, are You Willing to Share the Data?",Optional,String,,,,
+History,,,,,,,,,Provenance: History
+AdditionalInfo,,NA,"Additional Strain Information (e.g., kanamycin resistant, RefSeq ID = NC_000913.3, isolated from CAR-T cell culture)",Optional,String,,,,
+AdditionalComments,,NA,"Any Additional Comments? (e.g., we'll email you the genome sequence data)",Optional,String,,,,
+CoreDataPath,,,Portion of the data pathway that will not change as the template is used to generate experimental records,Optional,String,,,,
+SpecificDataPath,,,Portion of the data pathway specific to data from a given experimental record,Optional,String,,,,
+TemplateName,,,Read-only field used to indicate which template was used,Optional,String,,,,

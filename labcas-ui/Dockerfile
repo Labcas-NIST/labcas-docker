@@ -50,8 +50,9 @@ RUN apt-get update && \
     git && \
     rm -rf /var/lib/apt/lists/*
 
-# Clone LabCAS UI repository from configurable repo (default public), use default branch
-ARG LABCAS_UI_REPO=https://github.com/Labcas-NIST/Labcas-ui.git
+# Clone LabCAS UI repository from configurable repo (default private), use configured branch
+ARG LABCAS_UI_REPO=github.com:yuliujpl/labcas-nist-private.git
+ARG LABCAS_UI_BRANCH=microbial_strain
 ARG GITHUB_TOKEN
 RUN set -eux; \
     repo_url="${LABCAS_UI_REPO}"; \
@@ -59,9 +60,46 @@ RUN set -eux; \
       # Inject token into HTTPS URL for private repo access (not needed for public repo)
       proto=$(echo "$repo_url" | sed -E 's|^(https?)://.*|\1|'); \
       host_path=$(echo "$repo_url" | sed -E 's|^https?://||'); \
-      repo_url="${proto}://${GITHUB_TOKEN}@${host_path}"; \
+      if [ "$proto" = "http" ] || [ "$proto" = "https" ]; then \
+        repo_url="${proto}://${GITHUB_TOKEN}@${host_path}"; \
+      fi; \
     fi; \
-    git clone --single-branch "$repo_url" /var/www/html/labcas-ui
+    git clone --single-branch --branch "$LABCAS_UI_BRANCH" "$repo_url" /var/www/html/labcas-ui
+
+# Patch UI base-path handling to avoid null ui_base_path after login
+RUN python3 - <<'PY'
+from pathlib import Path
+import re
+
+root = Path("/var/www/html/labcas-ui")
+
+for html in root.rglob("*.html"):
+    try:
+        text = html.read_text(encoding="utf-8")
+    except Exception:
+        continue
+    if "pathname.startswith" in text:
+        text = text.replace("pathname.startswith", "pathname.startsWith")
+        html.write_text(text, encoding="utf-8")
+
+login_js = root / "assets/js/labcas/login.js"
+if login_js.exists():
+    text = login_js.read_text(encoding="utf-8")
+    if 'localStorage.setItem("ui_base_path"' not in text:
+        pattern = re.compile(
+            r"(\\n\\s*if \\(base\\) \\{[\\s\\S]*?\\n\\s*\\}\\n)"
+            r"(\\s*if \\(path && path\\[0\\] !== \"/\"\\) \\{)",
+            re.MULTILINE,
+        )
+        insert = (
+            "\\n    if (base && localStorage && !localStorage.getItem(\"ui_base_path\")) {"
+            "\\n        localStorage.setItem(\"ui_base_path\", base);"
+            "\\n    }\\n"
+        )
+        new_text, count = pattern.subn(r"\\1" + insert + r"\\2", text, count=1)
+        if count:
+            login_js.write_text(new_text, encoding="utf-8")
+PY
 
 # Create configuration directory
 RUN mkdir -p /var/www/html/labcas-ui/assets/conf

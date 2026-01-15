@@ -56,7 +56,8 @@ services:
     build:
       context: ./labcas-ui
       args:
-        LABCAS_UI_REPO: https://github.com/Labcas-NIST/Labcas-ui.git
+        LABCAS_UI_REPO: https://github.com/yuliujpl/labcas-nist-private.git
+        LABCAS_UI_BRANCH: microbial_strain
         GITHUB_TOKEN: ${GITHUB_TOKEN}
     container_name: labcas-ui
     depends_on:
