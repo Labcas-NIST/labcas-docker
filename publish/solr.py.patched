@@ -93,3 +93,10 @@ class Solr(Template):
         docs = [doc['id'] for doc in docs]
         return docs
 
+    def commit(self, url):
+        url = url + '/update?commit=true'
+        headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+        response = requests.post(url, data=b'{}', headers=headers, verify=False)
+        if response.status_code == 400:
+            raise MyException("Error while committing to Solr: " + response.text)
+        return response.text

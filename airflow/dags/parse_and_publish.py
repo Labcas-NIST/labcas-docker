@@ -26,20 +26,12 @@ with DAG(
 
  
     # ------------------------------------------------------------------
-    # Publish task: invoke the existing docker-compose “publish” service
+    # Publish task: exec the running labcas-publish container (DIND)
     # ------------------------------------------------------------------
     #
-    # Instead of spinning a fresh container with DockerOperator, leverage the
-    # service already defined in docker-compose.yml so it inherits exactly the
-    # same mounts (metadata, data, archive, etc.) proven to work.
-    #
-    # `docker-compose run --rm publish` starts a one-off container from that
-    # service definition and removes it when done.  The image’s default CMD
-    # already runs the publishing pipeline so the bash command is empty.
-    #
-    # docker-compose gets installed into ~/.local/bin inside the Airflow image,
-    # which is not on PATH when Airflow executes bash commands.  Prefix PATH
-    # so the binary is discoverable.
+    # The Airflow entrypoint starts a long-running labcas-publish container
+    # inside the DIND daemon with the same mounts as the publish service.
+    # We wait for it, then exec the pipeline with run-specific env vars.
     # ------------------------------------------------------------------
     # Sensor: wait until the long-running labcas-publish container is up
     # ------------------------------------------------------------------
@@ -72,6 +64,7 @@ with DAG(
             "-e PUBLISH_COLLECTION=\"$PUBLISH_COLLECTION\" "
             "-e PUBLISH_COLLECTION_SUBSET=\"$PUBLISH_COLLECTION_SUBSET\" "
             "-e PUBLISH_ID=\"$PUBLISH_ID\" "
+            "-e SOLR_URL=\"$SOLR_URL\" -e solr=\"$solr\" "
             "-e BASIC_AUTH_USER=\"$BASIC_AUTH_USER\" "
             "-e BASIC_AUTH_PASS=\"$BASIC_AUTH_PASS\" "
             "labcas-publish "
@@ -83,6 +76,8 @@ with DAG(
             "PUBLISH_COLLECTION": os.getenv("PUBLISH_COLLECTION", "Basophile"),
             "PUBLISH_COLLECTION_SUBSET": os.getenv("PUBLISH_COLLECTION_SUBSET", ""),
             "PUBLISH_ID": os.getenv("PUBLISH_ID", ""),
+            "SOLR_URL": os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/"),
+            "solr": os.getenv("solr", os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/")),
             "BASIC_AUTH_USER": basic_auth_user,
             "BASIC_AUTH_PASS": basic_auth_pass,
         },

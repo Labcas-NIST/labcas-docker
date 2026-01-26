@@ -1,7 +1,7 @@
 FROM apache/airflow:2.6.3
 
 USER root
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y git docker.io iptables && rm -rf /var/lib/apt/lists/*
 # Install classic Docker Compose (v1) CLI so BashOperator can invoke
 # `docker-compose …` inside the Airflow container.  We install it later
 # as *airflow* user to comply with the upstream image guidelines.
@@ -22,5 +22,5 @@ COPY scripts/start_local_executor.sh /opt/airflow/scripts/start_local_executor.s
 RUN chmod +x /opt/airflow/scripts/start_local_executor.sh
 
 USER airflow
-# Add docker-compose together with the other Python dependencies
-RUN pip install --no-cache-dir pandas openpyxl docker psycopg2-binary docker-compose
+# Add Python dependencies; avoid docker-compose to keep Airflow's deps intact.
+RUN pip install --no-cache-dir pandas openpyxl docker psycopg2-binary

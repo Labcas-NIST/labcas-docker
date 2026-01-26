@@ -1,16 +1,7 @@
 from datetime import datetime
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-from airflow.providers.docker.operators.docker import DockerOperator
-from docker.types import Mount
 import os
-
-
-def _required_env(name: str) -> str:
-    val = os.getenv(name, "").strip()
-    if not val:
-        raise RuntimeError(f"Required environment variable {name} is not set inside Airflow. Set it to an absolute host path in docker-compose.yml under the airflow service.")
-    return val
 
 
 with DAG(
@@ -92,67 +83,55 @@ with DAG(
         ),
     )
 
-    # Build host paths for mounts; fail fast if not provided
-    HOST_DATA_PATH = _required_env("HOST_DATA_PATH")
-    HOST_METADATA_PATH = _required_env("HOST_METADATA_PATH")
-    HOST_LABCAS_DATA = _required_env("HOST_LABCAS_DATA")
-    HOST_PUBLISH_CONFIG = _required_env("HOST_PUBLISH_CONFIG")
-    HOST_ARCHIVE_PATH = _required_env("HOST_ARCHIVE_PATH")
-
-    # Use a separate host archive directory for the ephemeral run to prevent collisions
-    EPHEMERAL_ARCHIVE_HOST = f"{HOST_ARCHIVE_PATH.rstrip('/')}__ephemeral"
-
     # Credentials and runtime settings
     basic_auth_user = os.getenv("BASIC_AUTH_USER", "dliu")
     basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "secret")
 
-    # Compose network name (default project dir is labcas-docker-clean)
-    network_name = os.getenv("COMPOSE_NETWORK_NAME", "labcas-docker-clean_labcas-net")
-
     # Use a distinct collection name for ephemeral runs so it's easy
     # to verify in the UI/Solr without clobbering the main collection.
 
-    publish_ephemeral = DockerOperator(
+    wait_publish = BashOperator(
+        task_id="wait_publish_container",
+        bash_command=(
+            "{% raw %}"
+            "set -euo pipefail; "
+            "while true; do "
+            "  status=$(docker inspect -f '{{.State.Running}}' labcas-publish 2>/dev/null || echo 'false'); "
+            "  if [ \"$status\" = \"true\" ]; then break; fi; "
+            "  echo 'Waiting for labcas-publish container...'; "
+            "  sleep 5; "
+            "done"
+            "{% endraw %}"
+        ),
+    )
+
+    publish_ephemeral = BashOperator(
         task_id="publish_ephemeral",
-        image="labcas-docker-clean-publish",
-        entrypoint="/bin/bash",
-        command=f"-lc 'mkdir -p /data/archive/nist/{ephemeral_collection} && python3 /opt/publish/publishing_pipeline.py'",
-        force_pull=False,
-        auto_remove=True,
-        mount_tmp_dir=False,
-        network_mode=network_name,
-        environment={
-            # Keep parity with the existing DAG defaults
+        bash_command=(
+            "set -euo pipefail; "
+            "docker exec "
+            "-e steps=\"$PUBLISH_STEPS\" "
+            "-e PUBLISH_CONSORTIUM=\"$PUBLISH_CONSORTIUM\" "
+            "-e PUBLISH_COLLECTION=\"$PUBLISH_COLLECTION\" "
+            "-e PUBLISH_COLLECTION_SUBSET=\"$PUBLISH_COLLECTION_SUBSET\" "
+            "-e PUBLISH_ID=\"$PUBLISH_ID\" "
+            "-e SOLR_URL=\"$SOLR_URL\" -e solr=\"$solr\" "
+            "-e BASIC_AUTH_USER=\"$BASIC_AUTH_USER\" "
+            "-e BASIC_AUTH_PASS=\"$BASIC_AUTH_PASS\" "
+            "labcas-publish "
+            "bash -lc 'mkdir -p /data/archive/nist/${PUBLISH_COLLECTION} && python3 /opt/publish/publishing_pipeline.py'"
+        ),
+        env={
             "PUBLISH_STEPS": os.getenv("PUBLISH_STEPS", "crawl,publish"),
             "PUBLISH_CONSORTIUM": os.getenv("PUBLISH_CONSORTIUM", "NIST"),
-            # Publish to a slightly different collection name
             "PUBLISH_COLLECTION": ephemeral_collection,
             "PUBLISH_COLLECTION_SUBSET": os.getenv("PUBLISH_COLLECTION_SUBSET", ""),
             "PUBLISH_ID": os.getenv("PUBLISH_ID", "ephemeral"),
-            # Provide legacy env names some code paths expect
-            "steps": os.getenv("PUBLISH_STEPS", "crawl,publish"),
-            "consortium": os.getenv("PUBLISH_CONSORTIUM", "NIST"),
-            "collection": ephemeral_collection,
-            "collection_subset": os.getenv("PUBLISH_COLLECTION_SUBSET", ""),
-            "publish_id": os.getenv("PUBLISH_ID", "ephemeral"),
+            "SOLR_URL": os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/"),
+            "solr": os.getenv("solr", os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/")),
             "BASIC_AUTH_USER": basic_auth_user,
             "BASIC_AUTH_PASS": basic_auth_pass,
-            # Backend/Solr endpoints for publish
-            "solr": os.getenv("solr", "https://labcas-backend:8984/solr/"),
-            "SOLR_URL": os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/"),
         },
-        mounts=[
-            # Mirror docker-compose publish service mounts
-            Mount(source=HOST_METADATA_PATH, target="/mnt/metadata", type="bind", read_only=True),
-            Mount(source=HOST_DATA_PATH, target="/data", type="bind", read_only=False),
-            Mount(source=HOST_LABCAS_DATA, target="/labcas-data", type="bind", read_only=False),
-            # Use isolated archive output for side-by-side comparison
-            Mount(source=EPHEMERAL_ARCHIVE_HOST, target="/data/archive", type="bind", read_only=False),
-            Mount(source=HOST_PUBLISH_CONFIG, target="/config/publish", type="bind", read_only=True),
-        ],
-        # Ensure DockerOperator talks to the host Docker via mounted socket from compose
-        docker_url="unix://var/run/docker.sock",
-        api_version=None,
     )
 
     snapshot_after = BashOperator(
@@ -182,4 +161,4 @@ with DAG(
     )
 
     # Pipeline
-    parse_task >> snapshot_before >> prepare_ephemeral_cfg >> sync_to_metadata >> wait_solr >> publish_ephemeral >> post_solr_marker >> snapshot_after
+    parse_task >> snapshot_before >> prepare_ephemeral_cfg >> sync_to_metadata >> wait_solr >> wait_publish >> publish_ephemeral >> post_solr_marker >> snapshot_after

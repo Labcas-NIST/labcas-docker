@@ -77,6 +77,7 @@ with DAG(
             "-e PUBLISH_COLLECTION=\"$PUBLISH_COLLECTION\" -e collection=\"$PUBLISH_COLLECTION\" "
             "-e PUBLISH_COLLECTION_SUBSET=\"$PUBLISH_COLLECTION_SUBSET\" -e collection_subset=\"$PUBLISH_COLLECTION_SUBSET\" "
             "-e PUBLISH_ID=\"$PUBLISH_ID\" -e publish_id=\"$PUBLISH_ID\" "
+            "-e SOLR_URL=\"$SOLR_URL\" -e solr=\"$solr\" "
             "-e BASIC_AUTH_USER=\"$BASIC_AUTH_USER\" "
             "-e BASIC_AUTH_PASS=\"$BASIC_AUTH_PASS\" "
             "labcas-publish "
@@ -89,6 +90,8 @@ with DAG(
             "PUBLISH_COLLECTION": os.getenv("PUBLISH_COLLECTION", "fcs_interlab_study"),
             "PUBLISH_COLLECTION_SUBSET": os.getenv("PUBLISH_COLLECTION_SUBSET", ""),
             "PUBLISH_ID": os.getenv("PUBLISH_ID", ""),
+            "SOLR_URL": os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/"),
+            "solr": os.getenv("solr", os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/")),
             "BASIC_AUTH_USER": basic_auth_user,
             "BASIC_AUTH_PASS": basic_auth_pass,
         },
@@ -109,6 +112,7 @@ with DAG(
             "-e PUBLISH_CONSORTIUM=\"$PUBLISH_CONSORTIUM\" -e consortium=\"$PUBLISH_CONSORTIUM\" "
             "-e PUBLISH_COLLECTION=\"$PUBLISH_COLLECTION\" -e collection=\"$PUBLISH_COLLECTION\" "
             "-e PUBLISH_ID=\"$PID\" -e publish_id=\"$PID\" "
+            "-e SOLR_URL=\"$SOLR_URL\" -e solr=\"$solr\" "
             "-e BASIC_AUTH_USER=\"$BASIC_AUTH_USER\" -e BASIC_AUTH_PASS=\"$BASIC_AUTH_PASS\" "
             "labcas-publish python3 /opt/publish/publishing_pipeline.py"
         ),
@@ -116,6 +120,8 @@ with DAG(
             "PUBLISH_CONSORTIUM": os.getenv("PUBLISH_CONSORTIUM", "NIST"),
             "PUBLISH_COLLECTION": os.getenv("PUBLISH_COLLECTION", "fcs_interlab_study"),
             "RUN_PUBLISH_FILES_ONLY": os.getenv("RUN_PUBLISH_FILES_ONLY", "false"),
+            "SOLR_URL": os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/"),
+            "solr": os.getenv("solr", os.getenv("SOLR_URL", "https://labcas-backend:8984/solr/")),
             "BASIC_AUTH_USER": basic_auth_user,
             "BASIC_AUTH_PASS": basic_auth_pass,
         },

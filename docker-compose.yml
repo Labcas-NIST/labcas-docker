@@ -140,6 +140,17 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - DIND_ENABLED=1
+      - BUILD_PUBLISH_IMAGE=1
+      - START_PUBLISH_CONTAINER=1
+      - PUBLISH_IMAGE=labcas-docker-clean-publish
+      - PUBLISH_CONTAINER_NAME=labcas-publish
+      - AIRFLOW_DIND_DATA_PATH=/data
+      - AIRFLOW_DIND_METADATA_PATH=/metadata
+      - AIRFLOW_DIND_PUBLISH_CONFIG=/config/publish
+      - AIRFLOW_DIND_LABCAS_DATA_PATH=/labcas-data
+      - AIRFLOW_DIND_ARCHIVE_PATH=/data/archive
+      - AIRFLOW_DIND_NETWORK_MODE=host
       # Absolute host paths for DockerOperator bind mounts (fallback to project dir via ${PWD})
       - HOST_PROJECT_ROOT=${HOST_PROJECT_ROOT:-${PWD}}
       - HOST_DATA_PATH=${HOST_DATA_PATH:-${PWD}/data}
@@ -156,8 +167,11 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - ./data:/data
       - ./metadata:/metadata
-      - /var/run/docker.sock:/var/run/docker.sock
       - ./shared-config/airflow:/config/airflow
+      - ./shared-config/publish:/config/publish
+      - ./publish:/opt/airflow/publish
+      - ./data/labcas-data:/labcas-data
+      - airflow-dind:/var/lib/docker
       # Allow the DAG’s BashOperator to reference the project compose file.
       - ./docker-compose.yml:/opt/airflow/docker-compose.yml:ro
       # Mount project read-only elsewhere so build contexts resolve
@@ -168,6 +182,8 @@ services:
       - labcas-net
     entrypoint: ["bash", "/opt/airflow/scripts/start_local_executor.sh"]
     command: []
+    privileged: true
+    user: root
 
   publish:
     build:
@@ -219,3 +235,4 @@ networks:
 volumes:
   labcas-solr-index:
   postgres-data:
+  airflow-dind:

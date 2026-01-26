@@ -17,6 +17,14 @@ def patch_publishing_pipeline():
         if "contains='_labcasmet_'" in line:
             lines[i] = line.replace("contains='_labcasmet_'", "contains='labcasmet_'")
 
+    # Fix run_pipeline_unsanitized call signature (publish_id arg required).
+    for i, line in enumerate(lines):
+        if "run_pipeline_unsanitized(collection, collection_subset, steps)" in line:
+            lines[i] = line.replace(
+                "run_pipeline_unsanitized(collection, collection_subset, steps)",
+                "run_pipeline_unsanitized(collection, collection_subset, publish_id, steps)",
+            )
+
     # Write back the modified file
     with open(pipeline_path, "w") as f:
         f.writelines(lines)
