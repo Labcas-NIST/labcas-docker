@@ -51,7 +51,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Clone LabCAS UI repository from configurable repo (default private), use configured branch
-ARG LABCAS_UI_REPO=github.com:yuliujpl/labcas-nist-private.git
+ARG LABCAS_UI_REPO=github.com:Labcas-NIST/Labcas-ui.git
 ARG LABCAS_UI_BRANCH=microbial_strain
 ARG GITHUB_TOKEN
 RUN set -eux; \
