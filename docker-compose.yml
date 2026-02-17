@@ -44,7 +44,7 @@ services:
     volumes:
       - ./labcas-backend/labcas.properties:/root/labcas.properties
       - ./labcas-backend/server.xml:/tmp/labcas/apache-tomcat/conf/server.xml
-      - labcas-solr-index:/tmp/labcas/solr-index
+      - ./data/labcas-solr-index:/tmp/labcas/solr-index
       - ./shared-config/labcas-backend:/config
       - ./data/logs/labcas-backend:/var/log/labcas-backend
       - ./data/logs/labcas-backend/tomcat:/tmp/labcas/apache-tomcat/logs
@@ -83,7 +83,7 @@ services:
       - labcas-net
     # environment:
     #   - REDIRECT_DEFAULT=http://localhost:80
-
+    
   labcas-proxy:
       build: ./labcas-proxy
       volumes:
@@ -122,7 +122,7 @@ services:
       - POSTGRES_PASSWORD=airflow
       - POSTGRES_DB=airflow
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./data/postgres-data:/var/lib/postgresql/data
     networks:
       - labcas-net
 
