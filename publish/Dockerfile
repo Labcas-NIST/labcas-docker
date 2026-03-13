@@ -4,12 +4,18 @@
 FROM python:3.10-slim
 
 ARG GITHUB_TOKEN
+ARG PUBLISH_REPO_URL=https://github.com/jpl-labcas/publish.git
+ARG PUBLISH_REPO_REF=simplified_publish
 ARG PIP_EXTRA_INDEX_URL=https://pypi.org/simple
 ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
 RUN apt-get update && apt-get install -y git gcc libglib2.0-dev libxml2-dev libxslt1-dev libjpeg-dev zlib1g-dev libopenjp2-7-dev libtiff-dev && rm -rf /var/lib/apt/lists/*
 
 # clone the Publish repo (token optional for private repos)
-RUN git clone https://$GITHUB_TOKEN@github.com/jpl-labcas/publish.git /opt/publish
+RUN if [ -n "$GITHUB_TOKEN" ]; then \
+      git clone --branch "${PUBLISH_REPO_REF}" --single-branch "https://${GITHUB_TOKEN}@${PUBLISH_REPO_URL#https://}" /opt/publish; \
+    else \
+      git clone --branch "${PUBLISH_REPO_REF}" --single-branch "${PUBLISH_REPO_URL}" /opt/publish; \
+    fi
 WORKDIR /opt/publish
 
 # install Publish and its deps

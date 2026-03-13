@@ -7,10 +7,12 @@ RUN apt-get update && apt-get install -y git docker.io iptables && rm -rf /var/l
 # as *airflow* user to comply with the upstream image guidelines.
 
 ARG GITHUB_TOKEN
+ARG PUBLISH_REPO_URL=https://github.com/jpl-labcas/publish.git
+ARG PUBLISH_REPO_REF=simplified_publish
 RUN if [ -z "$GITHUB_TOKEN" ]; then \
       echo "GITHUB_TOKEN build arg is required" >&2; exit 1; \
     fi
-RUN git clone https://${GITHUB_TOKEN}@github.com/jpl-labcas/publish.git /opt/publish
+RUN git clone --branch "${PUBLISH_REPO_REF}" --single-branch "https://${GITHUB_TOKEN}@${PUBLISH_REPO_URL#https://}" /opt/publish
 
 RUN if [ -f /opt/publish/setup.py ]; then \
       pip install /opt/publish; \

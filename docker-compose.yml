@@ -132,6 +132,8 @@ services:
       context: ./airflow
       args:
         GITHUB_TOKEN: ${GITHUB_TOKEN}
+        PUBLISH_REPO_URL: ${PUBLISH_REPO_URL:-https://github.com/jpl-labcas/publish.git}
+        PUBLISH_REPO_REF: ${PUBLISH_REPO_REF:-simplified_publish}
     container_name: airflow
     depends_on:
       - labcas-backend
@@ -197,6 +199,8 @@ services:
       context: ./publish
       args:
         GITHUB_TOKEN: ${GITHUB_TOKEN}
+        PUBLISH_REPO_URL: ${PUBLISH_REPO_URL:-https://github.com/jpl-labcas/publish.git}
+        PUBLISH_REPO_REF: ${PUBLISH_REPO_REF:-simplified_publish}
     container_name: labcas-publish
     depends_on:
       - labcas-backend
