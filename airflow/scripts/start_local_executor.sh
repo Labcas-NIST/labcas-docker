@@ -104,6 +104,73 @@ start_publish_container() {
     "${image}" >/dev/null
 }
 
+build_linkml_validator_image() {
+  if [ "${DIND_ENABLED:-1}" != "1" ]; then
+    return 0
+  fi
+  if [ "${BUILD_LINKML_VALIDATOR_IMAGE:-1}" = "0" ]; then
+    return 0
+  fi
+
+  local image="${LINKML_VALIDATOR_IMAGE:-labcas-docker-clean-linkml-validator}"
+  local dockerfile="/opt/airflow/scripts/linkml_validator_dind.Dockerfile"
+  local context="/opt/airflow/scripts"
+
+  if docker image inspect "${image}" >/dev/null 2>&1; then
+    echo "LinkML validator image ${image} already present; skipping build."
+    return 0
+  fi
+
+  if [ ! -f "${dockerfile}" ]; then
+    echo "ERROR: ${dockerfile} not found; cannot build LinkML validator image."
+    exit 1
+  fi
+
+  docker build \
+    --build-arg LINKML_REPO_URL="${LINKML_REPO_URL:-https://github.com/usnistgov/nist-labcas-linkml.git}" \
+    --build-arg LINKML_REPO_REF="${LINKML_REPO_REF:-main}" \
+    --build-arg LINKML_GITHUB_TOKEN="${LINKML_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}" \
+    -t "${image}" \
+    -f "${dockerfile}" \
+    "${context}"
+}
+
+start_linkml_validator_container() {
+  if [ "${DIND_ENABLED:-1}" != "1" ]; then
+    return 0
+  fi
+  if [ "${START_LINKML_VALIDATOR_CONTAINER:-1}" = "0" ]; then
+    return 0
+  fi
+
+  local image="${LINKML_VALIDATOR_IMAGE:-labcas-docker-clean-linkml-validator}"
+  local container="${LINKML_VALIDATOR_CONTAINER_NAME:-labcas-linkml-validator}"
+  local data_path="${AIRFLOW_DIND_DATA_PATH:-/data}"
+  local metadata_path="${AIRFLOW_DIND_METADATA_PATH:-/metadata}"
+
+  if ! docker image inspect "${image}" >/dev/null 2>&1; then
+    echo "ERROR: LinkML validator image ${image} not found; cannot start ${container}."
+    exit 1
+  fi
+
+  mkdir -p "${data_path}" "${metadata_path}"
+
+  if docker ps -a --format '{{.Names}}' | grep -qx "${container}"; then
+    if docker inspect -f '{{.State.Running}}' "${container}" 2>/dev/null | grep -q "true"; then
+      echo "LinkML validator container ${container} already running; skipping start."
+      return 0
+    fi
+    docker rm -f "${container}" >/dev/null
+  fi
+
+  docker run -d \
+    --name "${container}" \
+    --network host \
+    -v "${data_path}:/data" \
+    -v "${metadata_path}:/metadata" \
+    "${image}" >/dev/null
+}
+
 airflow_cmd() {
   su -p airflow -c "HOME=/home/airflow PATH=/home/airflow/.local/bin:\$PATH airflow $*"
 }
@@ -111,6 +178,8 @@ airflow_cmd() {
 start_dind
 build_publish_image
 start_publish_container
+build_linkml_validator_image
+start_linkml_validator_container
 
 # Ensure airflow can write logs even though the container runs as root.
 chown -R airflow:root /opt/airflow/logs || true

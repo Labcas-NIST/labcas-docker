@@ -71,6 +71,11 @@ Named volumes: `labcas-solr-index`, `postgres-data`
 - App/tools:
   - Clones `https://github.com/jpl-labcas/publish.git` into `/opt/publish` and installs it if `setup.py` or `publish` script is present.
   - Custom start script `scripts/start_local_executor.sh`.
+  - In DIND mode, builds and starts:
+    - `labcas-publish` (existing publish workflow container)
+    - `labcas-linkml-validator` from `airflow/scripts/linkml_validator_dind.Dockerfile`
+      which clones `https://github.com/usnistgov/nist-labcas-linkml.git` and provides
+      `python /opt/linkml/linkml_validate.py` for schema-class validation tasks in DAGs.
 
 ### publish (./publish/Dockerfile)
 - Base image: `python:3.10-slim`

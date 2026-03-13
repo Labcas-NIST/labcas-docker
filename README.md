@@ -14,6 +14,7 @@ This repository provides a Dockerized setup for LabCAS (Laboratory Catalog and A
 - [Important Notes and Troubleshooting](#important-notes-and-troubleshooting)
 - [Additional Setup (.env)](#additional-setup-env)
 - [Quick Start: Publish Demo (Airflow)](#quick-start-publish-demo-airflow)
+- [Quick Start: Genomic LinkML Validation + Publish (Airflow)](#quick-start-genomic-linkml-validation-publish-airflow)
 - [Known CORS Behavior](#known-cors-behavior)
 - [Diagnostics Script](#diagnostics-script)
 - [Contributing](#contributing)
@@ -232,6 +233,64 @@ docker compose exec airflow airflow dags trigger parse_and_publish
 Tips:
 - Accept the browser warning for the self-signed certificate when visiting `https://localhost`.
 - UI config lives at `labcas-ui/environment.cfg`. The default sets `"environment": "/labcas-backend/"`, which routes UI API calls through the proxy.
+
+## Quick Start: Genomic LinkML Validation + Publish (Airflow)
+
+This workflow runs a minimal genomic "hello world" mapper, validates the mapped payload against
+the `Datasetlevel` class from `usnistgov/nist-labcas-linkml`, then publishes the resulting
+collection/dataset/file into LabCAS using the transient `labcas-publish` container.
+
+1) Build and start services
+
+```bash
+docker compose build --no-cache && docker compose up -d
+```
+
+2) Trigger the DAG
+
+```bash
+docker compose exec airflow airflow dags trigger genomic_helloworld_linkml_validation
+```
+
+3) Confirm success
+
+- Airflow UI: `http://localhost:8082/`
+- DAG: `genomic_helloworld_linkml_validation`
+- Successful tasks:
+  - `reset_generated_state`
+  - `create_hello_world_input`
+  - `map_genomic_payload`
+  - `wait_validator_container`
+  - `validate_linkml_payload`
+  - `generate_publish_cfg`
+  - `stage_archive_file`
+  - `wait_publish_container`
+  - `publish_metadata`
+  - `publish_files_only` (no-op unless `RUN_PUBLISH_FILES_ONLY=true`)
+
+Generated files:
+- Input: `/data/raw/genomic_helloworld/input.json`
+- Raw file: `/data/raw/genomic_helloworld/GENOMIC-HELLO-001.fastq`
+- Mapped output: `/data/staging/genomic_helloworld/datasetlevel.yaml`
+- Metadata cfgs: `/metadata/genomic_helloworld/...`
+- Archive payload: `/data/archive/nist/genomic_helloworld/mission/GENOMIC-HELLO-001.fastq`
+
+4) Verify in LabCAS UI
+
+- URL: `https://localhost/labcas-ui`
+- Login: `dliu` / `secret`
+- Confirm collection `genomic_helloworld` appears and contains dataset `mission`.
+
+Runtime notes:
+- The Airflow startup script builds and runs a DIND container named
+  `labcas-linkml-validator` from `airflow/scripts/linkml_validator_dind.Dockerfile`.
+- The validator clones `https://github.com/usnistgov/nist-labcas-linkml.git`
+  and validates mapped payloads via `python /opt/linkml/linkml_validate.py`.
+- If the LinkML repo requires authentication, set `GITHUB_TOKEN` (or `LINKML_GITHUB_TOKEN`)
+  in `.env` so the DIND build can clone it.
+- Validation output is saved per DAG run under
+  `/data/logs/airflow/linkml_validation/` (host path: `data/logs/airflow/linkml_validation/`).
+  Override with `GENOMIC_HELLOWORLD_LINKML_LOG_DIR`.
 
 ## Known CORS Behavior
 

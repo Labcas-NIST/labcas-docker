@@ -145,6 +145,13 @@ services:
       - START_PUBLISH_CONTAINER=1
       - PUBLISH_IMAGE=labcas-docker-clean-publish
       - PUBLISH_CONTAINER_NAME=labcas-publish
+      - BUILD_LINKML_VALIDATOR_IMAGE=1
+      - START_LINKML_VALIDATOR_CONTAINER=1
+      - LINKML_VALIDATOR_IMAGE=labcas-docker-clean-linkml-validator
+      - LINKML_VALIDATOR_CONTAINER_NAME=labcas-linkml-validator
+      - LINKML_REPO_URL=${LINKML_REPO_URL:-https://github.com/usnistgov/nist-labcas-linkml.git}
+      - LINKML_REPO_REF=${LINKML_REPO_REF:-main}
+      - LINKML_GITHUB_TOKEN=${LINKML_GITHUB_TOKEN:-${GITHUB_TOKEN}}
       - AIRFLOW_DIND_DATA_PATH=/data
       - AIRFLOW_DIND_METADATA_PATH=/metadata
       - AIRFLOW_DIND_PUBLISH_CONFIG=/config/publish
