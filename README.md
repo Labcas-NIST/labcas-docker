@@ -2,6 +2,8 @@
 
 This repository provides a Dockerized setup for LabCAS (Laboratory Catalog and Archive System) at JPL. It includes Dockerfiles and a `docker-compose.yml` for automating the process of building and running the LabCAS environment, complete with LDAP configuration, Apache for the UI, an Nginx proxy, Airflow, and backend services.
 
+For a plain-English Mac setup guide intended for non-developers, see `docs/macbook-setup.md`.
+
 ## Table of Contents
 
 - [Overview](#overview)

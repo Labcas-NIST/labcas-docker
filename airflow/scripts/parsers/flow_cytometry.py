@@ -6,6 +6,9 @@ Reads WG spreadsheets from an input directory, builds a dataset hierarchy
 (WorkingGroup → InstrumentCode → SiteCode → ProtocolID → …), and writes
 LabCAS-style cfg files under the chosen output directory.
 
+It can also emit a single normalized manifest JSON that captures the same
+collection/dataset/file structure in one document.
+
 CLI usage:
   python flow_cytometry.py --input-dir /data/raw --output-dir /metadata \
                            --collection fcs_interlab_study
@@ -22,6 +25,22 @@ import pandas as pd
 
 
 LOG = logging.getLogger("flow_cyt_parser")
+MANIFEST_VERSION = 1
+HIERARCHY_FIELDS = [
+    "WorkingGroup",
+    "InstrumentCode",
+    "SiteCode",
+    "ProtocolID",
+    "ExperimentType",
+    "SampleName",
+    "PrincipleContactID",
+    "DataProcessingLevel",
+    "StudyID",
+    "MaterialCode",
+    "ExperimentID",
+    "ReplicateNumber",
+    "DataFormat",
+]
 
 
 def _coerce_str(v) -> str:
@@ -61,22 +80,6 @@ def parse(input_dir: Path, collection: str) -> List[Dict]:
     if not excel_files:
         raise RuntimeError(f"No WG1/2/3 Excel files found in {in_path}")
 
-    hierarchy_fields = [
-        "WorkingGroup",
-        "InstrumentCode",
-        "SiteCode",
-        "ProtocolID",
-        "ExperimentType",
-        "SampleName",
-        "PrincipleContactID",
-        "DataProcessingLevel",
-        "StudyID",
-        "MaterialCode",
-        "ExperimentID",
-        "ReplicateNumber",
-        "DataFormat",
-    ]
-
     out_rows: List[Dict] = []
     for excel in excel_files:
         try:
@@ -105,7 +108,7 @@ def parse(input_dir: Path, collection: str) -> List[Dict]:
 
             # Build dataset_id from non-empty hierarchy fields
             segments: List[str] = []
-            for f in hierarchy_fields:
+            for f in HIERARCHY_FIELDS:
                 v = row.get(f, "").strip()
                 if v:
                     segments.append(v)
@@ -181,22 +184,14 @@ def write_cfgs(files: List[Dict], output_dir: Path) -> None:
             fh.write(file_cfg)
 
 
-def write_collection_root_artifacts(output_dir: Path, collection: str) -> None:
-    """Write collection-level cfg and json at output_dir/<collection>/.
-
-    The metadata is tailored for the NIST Flow Cytometry Standards Consortium
-    so the publish crawler can pick up and publish a collections document.
-    """
-    root_dir = output_dir / collection
-    root_dir.mkdir(parents=True, exist_ok=True)
-
-    # Canonical collection identifiers (do not change directory name)
+def _collection_root_metadata(collection: str) -> Dict[str, object]:
+    """Return collection-level metadata for the flow cytometry collection."""
     coll_id = "NIST_Flow_Cytometry_Standards_Consortium"
     description = (
         "Flow Cytometry Standards Consortium Interlaboratory Study -  WG1 and WG2 data"
     )
 
-    data: Dict[str, object] = {
+    return {
         "DatasetVersion": ["1"],
         "SubmittingInstitutuionID": ["NIST"],
         "AssayType": ["Flow Cytometry"],
@@ -311,6 +306,18 @@ def write_collection_root_artifacts(output_dir: Path, collection: str) -> None:
         "DatasetId": [coll_id],
     }
 
+
+def write_collection_root_artifacts(output_dir: Path, collection: str) -> None:
+    """Write collection-level cfg and json at output_dir/<collection>/.
+
+    The metadata is tailored for the NIST Flow Cytometry Standards Consortium
+    so the publish crawler can pick up and publish a collections document.
+    """
+    root_dir = output_dir / collection
+    root_dir.mkdir(parents=True, exist_ok=True)
+
+    data = _collection_root_metadata(collection)
+
     # Write CFG (lists joined by '|')
     cfg_path = root_dir / f"{collection}.cfg"
     lines = ["[Collection]"]
@@ -327,6 +334,176 @@ def write_collection_root_artifacts(output_dir: Path, collection: str) -> None:
         json.dump(data, fh, indent=2)
 
 
+def _normalize_manifest_value(value: object) -> object | None:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        out: List[str] = []
+        seen = set()
+        for item in value:
+            normalized = _normalize_manifest_value(item)
+            if normalized is None:
+                continue
+            if isinstance(normalized, list):
+                for nested in normalized:
+                    if nested not in seen:
+                        out.append(nested)
+                        seen.add(nested)
+                continue
+            if normalized not in seen:
+                out.append(normalized)
+                seen.add(normalized)
+        return out or None
+    if isinstance(value, (int, float)):
+        value = str(value)
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return value
+
+
+def _normalize_scalar_metadata(data: Dict[str, object]) -> Dict[str, object]:
+    excluded = {
+        "id",
+        "labcasId",
+        "labcasName",
+        "name",
+        "labcas_node_type",
+        "CollectionId",
+        "DatasetId",
+        "FileId",
+        "file_id",
+        "CollectionName",
+        "DatasetName",
+        "DatasetVersion",
+        "FileName",
+        "FileVersion",
+        "FileLocation",
+        "RealFileLocation",
+        "PublishDate",
+        "DatePublished",
+        "PublishId",
+    }
+    normalized: Dict[str, object] = {}
+    for key, value in data.items():
+        if key in excluded:
+            continue
+        normalized_value = _normalize_manifest_value(value)
+        if normalized_value is None:
+            continue
+        normalized[key] = normalized_value
+    return normalized
+
+
+def _ancestor_dataset_ids(dataset_id: str) -> List[str]:
+    parts = [part for part in dataset_id.split("/") if part]
+    return ["/".join(parts[: idx + 1]) for idx in range(1, len(parts))]
+
+
+def _common_metadata(items: List[Dict[str, object]]) -> Dict[str, object]:
+    if not items:
+        return {}
+    common = dict(items[0])
+    for item in items[1:]:
+        for key in list(common.keys()):
+            if key not in item or item[key] != common[key]:
+                common.pop(key, None)
+    return common
+
+
+def _subtract_parent_metadata(
+    metadata: Dict[str, object], parent_metadata: Dict[str, object]
+) -> Dict[str, object]:
+    return {key: value for key, value in metadata.items() if parent_metadata.get(key) != value}
+
+
+def build_normalized_manifest(files: List[Dict], collection: str) -> Dict[str, object]:
+    datasets: Dict[str, Dict[str, object]] = {}
+    dataset_records: Dict[str, List[Dict[str, object]]] = {}
+    cleaned_file_records: List[Dict[str, object]] = []
+    files_out: List[Dict[str, object]] = []
+    collection_metadata = _normalize_scalar_metadata(_collection_root_metadata(collection))
+
+    for rec in files:
+        dataset_id = _coerce_str(rec.get("DatasetId", ""))
+        filename = _coerce_str(rec.get("FileName", "")).strip()
+        if not dataset_id or not filename:
+            continue
+
+        file_id = _coerce_str(rec.get("file_id", f"{dataset_id}/{filename}"))
+        file_metadata = _normalize_scalar_metadata(rec)
+        cleaned_file_records.append(
+            {
+                "dataset_id": dataset_id,
+                "file_id": file_id,
+                "filename": filename,
+                "metadata": file_metadata,
+            }
+        )
+        for node_id in _ancestor_dataset_ids(dataset_id):
+            dataset_records.setdefault(node_id, []).append(file_metadata)
+
+    collection_common = _common_metadata([item["metadata"] for item in cleaned_file_records])
+    for key, value in collection_common.items():
+        collection_metadata.setdefault(key, value)
+
+    dataset_common: Dict[str, Dict[str, object]] = {
+        node_id: _common_metadata(records) for node_id, records in dataset_records.items()
+    }
+
+    for node_id in sorted(dataset_common.keys(), key=lambda item: (item.count("/"), item)):
+        parent_id = node_id.rsplit("/", 1)[0]
+        parent_metadata = collection_common if parent_id == collection else dataset_common.get(parent_id, {})
+        datasets[node_id] = {
+            "id": node_id,
+            "parent_id": parent_id,
+            "name": node_id.rsplit("/", 1)[-1],
+            "metadata": _subtract_parent_metadata(dataset_common[node_id], parent_metadata),
+        }
+
+    for item in cleaned_file_records:
+        dataset_id = item["dataset_id"]
+        file_id = item["file_id"]
+        filename = item["filename"]
+        parent_metadata = dataset_common.get(dataset_id, collection_common)
+        files_out.append(
+            {
+                "id": file_id,
+                "parent_id": dataset_id,
+                "name": filename,
+                "path": file_id,
+                "metadata": _subtract_parent_metadata(item["metadata"], parent_metadata),
+            }
+        )
+
+    return {
+        "version": MANIFEST_VERSION,
+        "format": "labcas_normalized_manifest",
+        "collection": {
+            "id": collection,
+            "name": collection,
+            "metadata": {
+                **collection_metadata,
+                "CollectionName": _collection_root_metadata(collection)["CollectionName"],
+                "CollectionDescription": _collection_root_metadata(collection)["CollectionDescription"],
+                "OwnerPrincipal": _collection_root_metadata(collection)["OwnerPrincipal"],
+            },
+        },
+        "datasets": list(datasets.values()),
+        "files": files_out,
+    }
+
+
+def write_normalized_manifest(files: List[Dict], output_dir: Path, collection: str) -> Path:
+    root_dir = output_dir / collection
+    root_dir.mkdir(parents=True, exist_ok=True)
+    manifest = build_normalized_manifest(files, collection)
+    manifest_path = root_dir / f"{collection}.manifest.json"
+    with manifest_path.open("w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, separators=(",", ":"))
+    return manifest_path
+
+
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Parse NIST Flow Cytometry WG1/2/3 spreadsheets to LabCAS cfgs",
@@ -334,6 +511,11 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument("--input-dir", default="/data/raw", help="Directory with WG*.xlsx files")
     parser.add_argument("--output-dir", default="/metadata", help="Directory to write cfgs")
     parser.add_argument("--collection", default="fcs_interlab_study", help="Collection name")
+    parser.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="Write only the normalized manifest and collection JSON, not per-node cfg sidecars",
+    )
     parser.add_argument("--log-level", default="INFO", help="Logging level (DEBUG, INFO, ...)")
     args = parser.parse_args(argv)
 
@@ -343,9 +525,18 @@ def main(argv: List[str] | None = None) -> int:
     files = parse(Path(args.input_dir), collection=args.collection)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    write_cfgs(files, out_dir)
-    write_collection_root_artifacts(out_dir, args.collection)
-    LOG.info("Wrote cfgs for %d files under %s", len(files), args.output_dir)
+    if not args.manifest_only:
+        write_cfgs(files, out_dir)
+        write_collection_root_artifacts(out_dir, args.collection)
+    manifest_path = write_normalized_manifest(files, out_dir, args.collection)
+    LOG.info(
+        "Wrote %s and %s for %d files under %s",
+        "normalized manifest",
+        "cfgs" if not args.manifest_only else "no cfgs",
+        len(files),
+        args.output_dir,
+    )
+    LOG.info("Normalized manifest path: %s", manifest_path)
     return 0
 
 
