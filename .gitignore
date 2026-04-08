@@ -8,6 +8,17 @@ data/logs/
 data/archive/
 data/generated_metadata/
 data/labcas-data/labcas-backend/generated_metadata/
+data/generated_metadata_manifest_compact_smoke/
+data/generated_metadata_manifest_smoke/
+data/labcas-data/
+data/manifest_only/
+data/manifest_only_compact/
+data/raw/genome_editing_consortium/
+data/raw/genomic_helloworld/
+data/run_state_manifest_compact_smoke/
+data/run_state_manifest_smoke/
+data/run_state_modular/
+docs/
 
 airflow/logs/
 labcas-proxy/cacerts/
