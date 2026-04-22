@@ -54,7 +54,7 @@ RUN apt-get update && \
 ARG LABCAS_UI_REPO=github.com:yuliujpl/labcas-nist-private.git
 ARG LABCAS_UI_BRANCH=microbial_strain
 ARG GITHUB_TOKEN
-RUN set -eux; \
+RUN set -eu; \
     repo_url="${LABCAS_UI_REPO}"; \
     if [ -n "${GITHUB_TOKEN:-}" ]; then \
       # Inject token into HTTPS URL for private repo access (not needed for public repo)
