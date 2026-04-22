@@ -17,6 +17,7 @@ For a plain-English Mac setup guide intended for non-developers, see `docs/macbo
 - [Additional Setup (.env)](#additional-setup-env)
 - [Quick Start: Publish Demo (Airflow)](#quick-start-publish-demo-airflow)
 - [Quick Start: Genomic LinkML Validation + Publish (Airflow)](#quick-start-genomic-linkml-validation-publish-airflow)
+- [Quick Start: Cell Expansion Provenance + Publish (Airflow)](#quick-start-cell-expansion-provenance-publish-airflow)
 - [Known CORS Behavior](#known-cors-behavior)
 - [Diagnostics Script](#diagnostics-script)
 - [Contributing](#contributing)
@@ -293,6 +294,83 @@ Runtime notes:
 - Validation output is saved per DAG run under
   `/data/logs/airflow/linkml_validation/` (host path: `data/logs/airflow/linkml_validation/`).
   Override with `GENOMIC_HELLOWORLD_LINKML_LOG_DIR`.
+
+## Quick Start: Cell Expansion Provenance + Publish (Airflow)
+
+This workflow reads John’s cell expansion provenance bundle from
+`data/raw/CellExpansion-04092026_Bundle`, applies the workbook-driven mapping from
+`data/raw/conf/CellLineCrossWalk.xlsx`, validates the staged LinkML payloads,
+then crawls and publishes the generated collection/dataset/file metadata through
+the existing `labcas-publish` container.
+
+The parser is collection-specific. It derives the allowed source field set from
+the union of workbook activity tabs, preserves entity-only extras in raw metadata,
+materializes real `DataList` instrument files as file artifacts, and synthesizes
+component sub-bundle JSONs when the raw input only ships a full collated bundle.
+
+1) Build and start services
+
+```bash
+docker compose build --no-cache && docker compose up -d
+```
+
+2) Trigger the DAG
+
+```bash
+docker compose exec airflow bash -lc \
+  'su -p airflow -c "HOME=/home/airflow PATH=/home/airflow/.local/bin:$PATH airflow dags trigger cell_expansion_parse_and_publish"'
+```
+
+3) Confirm success
+
+- Airflow UI: `http://localhost:8082/`
+- DAG: `cell_expansion_parse_and_publish`
+- CLI:
+
+```bash
+docker compose exec airflow bash -lc \
+  'su -p airflow -c "HOME=/home/airflow PATH=/home/airflow/.local/bin:$PATH airflow dags list-runs -d cell_expansion_parse_and_publish"'
+```
+
+- Successful tasks:
+  - `reset_generated_state`
+  - `parse_bundle`
+  - `wait_validator_container`
+  - `stage_validation_matrix_script`
+  - `validate_linkml_matrix`
+  - `wait_publish_container`
+  - `crawl_metadata`
+  - `normalize_generated_metadata`
+  - `publish_metadata`
+  - `publish_files_only` (no-op unless `RUN_PUBLISH_FILES_ONLY=true`)
+
+Generated files:
+- Metadata cfgs: `/metadata/cell_expansion_collection/...`
+- Archive payload: `/data/archive/nist/cell_expansion_collection/CellExpansion-000_v1/...`
+- Collection YAML: `/data/staging/cell_expansion_collection/collectionlevel.yaml`
+- Dataset manifest: `/data/staging/cell_expansion_collection/bulk/validation_manifest.json`
+- File manifest: `/data/staging/cell_expansion_collection/files_bulk/file_validation_manifest.json`
+- Download package manifest: `/data/staging/cell_expansion_collection/download_packages.json`
+- Ingestion report: `/data/staging/cell_expansion_collection/ingestion_report.json`
+
+4) Verify in LabCAS UI
+
+- URL: `https://localhost/labcas-ui`
+- Login: `dliu` / `secret`
+- Confirm collection `cell_expansion_collection` appears and contains dataset `CellExpansion-000_v1`.
+
+Parser-only local validation:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_cell_provenance.py' -v
+
+python3 airflow/scripts/parsers/cell_provenance.py \
+  --bundle-dir data/raw/CellExpansion-04092026_Bundle \
+  --workbook data/raw/conf/CellLineCrossWalk.xlsx \
+  --output-dir /tmp/cell-expansion-metadata \
+  --staging-dir /tmp/cell-expansion-staging \
+  --archive-root /tmp/cell-expansion-archive
+```
 
 ## Known CORS Behavior
 

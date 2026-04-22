@@ -3,6 +3,7 @@
 */certs/*
 */data/*
 .DS_Store
+.playwright-cli/
 data/staging/
 data/logs/
 data/archive/
@@ -15,6 +16,8 @@ data/manifest_only/
 data/manifest_only_compact/
 data/raw/genome_editing_consortium/
 data/raw/genomic_helloworld/
+data/raw/CellExpansion-*_Bundle/
+data/raw/conf/
 data/run_state_manifest_compact_smoke/
 data/run_state_manifest_smoke/
 data/run_state_modular/

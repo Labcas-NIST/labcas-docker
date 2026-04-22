@@ -46,6 +46,7 @@ services:
       - ./labcas-backend/server.xml:/tmp/labcas/apache-tomcat/conf/server.xml
       - labcas-solr-index:/tmp/labcas/solr-index
       - ./shared-config/labcas-backend:/config
+      - ${HOST_ARCHIVE_PATH:-./data/archive}:/data/archive
       - ./data/logs/labcas-backend:/var/log/labcas-backend
       - ./data/logs/labcas-backend/tomcat:/tmp/labcas/apache-tomcat/logs
       - ./data/logs/labcas-backend/solr:/tmp/labcas/solr/server/logs
@@ -57,7 +58,7 @@ services:
       context: ./labcas-ui
       args:
         LABCAS_UI_REPO: https://github.com/yuliujpl/labcas-nist-private.git
-        LABCAS_UI_BRANCH: microbial_strain
+        LABCAS_UI_BRANCH: cell_line_ui
         GITHUB_TOKEN: ${GITHUB_TOKEN}
     container_name: labcas-ui
     depends_on:
