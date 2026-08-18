@@ -21,7 +21,11 @@ RUN apt-get update && \
 RUN mkdir -p $LABCAS_HOME/labcas-backend /tmp/labcas/etc
 
 # Clone LabCAS backend repository
-RUN git clone https://github.com/EDRN/labcas-backend.git $LABCAS_HOME/labcas-backend
+#
+# [2026-08-18] This Docker stack expects the Java version of the backend, so make sure to
+# request it with the `--branch` option. Otherwise, you'll get the default `main` branch,
+# which is the Python version.
+RUN git clone --quiet --branch java https://github.com/EDRN/labcas-backend.git $LABCAS_HOME/labcas-backend
 
 # Build LabCAS backend
 WORKDIR $LABCAS_HOME/labcas-backend

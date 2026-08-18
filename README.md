@@ -287,6 +287,23 @@ Configuration files to review:
 - `./labcas-backend/labcas.properties`
 - `./labcas-proxy` configs (e.g., `nginx-default.conf`)
 
+
+## Integration with the EDRN Directory
+
+The [Early Detection Research Network](https://edrn.cancer.gov/) (EDRN) runs a directory service at `ldaps://edrn-ds.jpl.nasa.gov` which has a separate branch, simply named `o=NIST`, that contains NIST users and groups. To use the EDRN directory instead of the OpenLDAP server built into this Docker composition, do the following:
+
+1. Stop any existing Docker composition: `docker compose down --remove-orphans`
+2. Edit two files, `shared-config/labcas-backend/labcas.properties` and `labcas-backend/labcas.properties` as follows:
+    - Comment-out the section labeled `Use these settings for the OpenLDAP server built into this Docker composition`
+    - Un-comment-out the section `Use with EDRN Directory Service`
+    - Replace `REPLACE_WITH_SECRET` with a secret key for signing purposes (can be any string, so long as it's secret)
+    - Replace `REPLACE_WITH_ACTUAL_PASSWORD` with the actual manager password for the EDRN Directory server
+3. Rebuild the composition: `docker compose build --no-cache`
+4. Restart the composition: `docker compose up --detach`
+
+Now, when logging into the LabCAS user interface, use your NIST username and password, not `dliu/secret`.
+
+
 ## Contributing
 
 Contributions are welcome! Please fork the repository, make your changes, and submit a pull request.
