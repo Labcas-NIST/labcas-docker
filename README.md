@@ -16,8 +16,6 @@ For a plain-English Mac setup guide intended for non-developers, see `docs/macbo
 - [Important Notes and Troubleshooting](#important-notes-and-troubleshooting)
 - [Additional Setup (.env)](#additional-setup-env)
 - [Quick Start: Publish Demo (Airflow)](#quick-start-publish-demo-airflow)
-- [Quick Start: Genomic LinkML Validation + Publish (Airflow)](#quick-start-genomic-linkml-validation-publish-airflow)
-- [Quick Start: Cell Expansion Provenance + Publish (Airflow)](#quick-start-cell-expansion-provenance-publish-airflow)
 - [Known CORS Behavior](#known-cors-behavior)
 - [Diagnostics Script](#diagnostics-script)
 - [Contributing](#contributing)
@@ -46,7 +44,7 @@ Before you begin, ensure you have the following installed:
     ```
 2. **Configure Credentials**
 
-   You will need your LabCAS username and password for authentication when logging into the UI. For local testing, the default UI credentials are `dliu/secret`. You can manage environment values via the `.env` file and service configuration in `docker-compose.yml`.
+   You will need a LabCAS username and password to log into the UI. Request local test credentials from the repository owner. You can manage environment values via the `.env` file and service configuration in `docker-compose.yml`.
 
 ## Usage
 
@@ -183,19 +181,13 @@ GITHUB_TOKEN=your_github_token_here
 
 # Publish settings
 PUBLISH_CONSORTIUM=NIST
-PUBLISH_COLLECTION=Basophile
+PUBLISH_COLLECTION=your_collection_name
 PUBLISH_COLLECTION_SUBSET=
 PUBLISH_ID=
 PUBLISH_STEPS=crawl,publish
 
-# Host paths (absolute paths to your project folders)
-HOST_METADATA_PATH=/absolute/path/to/your/project/data/staging/
-HOST_PUBLISH_CONFIG=/absolute/path/to/your/project/shared-config/publish
-
-# Optional (used by docker-compose mounts)
-HOST_DATA_PATH=/absolute/path/to/your/project/data
-HOST_ARCHIVE_PATH=/absolute/path/to/your/project/data/archive
-HOST_LABCAS_DATA=/absolute/path/to/your/project/data/labcas-data
+# Runtime data and configuration mounts are deployment-specific. Set their
+# corresponding environment variables outside Git for the target deployment.
 ```
 
 Notes:
@@ -204,173 +196,81 @@ Notes:
 
 ## Quick Start: Publish Demo (Airflow)
 
-This workflow parses a sample CSV and publishes a Basophile collection via the included Airflow DAG and publish service.
+The Airflow publish demo is a collection-specific LinkML pipeline. Metadata inputs are supplied at runtime and are intentionally excluded from this public repository. Each DAG normalizes its collection's source format, validates the normalized records, preserves validation evidence in Airflow, and reaches the existing LabCAS publishing task.
 
-1) Build and start services
+Publishing is disabled by default. A normal demo run exercises the complete workflow but stops at the publish gate without sending records to Solr.
 
-```bash
-docker compose build --no-cache && docker compose up -d
-# If using the v1 plugin, the equivalent is:
-# docker-compose build --no-cache && docker-compose up -d
+### Collection-specific DAGs
+
+| Collection workflow | Airflow DAG | LinkML validation scope |
+| --- | --- | --- |
+| Genome Editing | `genome_editing_linkml_validate_and_publish` | Collection, dataset, and file metadata |
+| Flow Cytometry | `flow_cytometry_linkml_validate_and_publish` | Flow Cytometry extension records |
+| Cell Provenance | `cell_provenance_linkml_validate_and_publish` | Cell Line Expansion provenance records |
+| NMSB | `nmsb_linkml_validate_and_publish` | NMSB collection and dataset metadata |
+
+### Workflow
+
+```mermaid
+flowchart LR
+    inputs[Runtime-mounted metadata] --> check[Check configured inputs]
+    check --> genome[Genome Editing DAG]
+    check --> flow[Flow Cytometry DAG]
+    check --> cell[Cell Provenance DAG]
+    check --> nmsb[NMSB DAG]
+    genome --> normalize[Normalize collection metadata]
+    flow --> normalize
+    cell --> normalize
+    nmsb --> normalize
+    normalize --> validate[Validate with LinkML]
+    schema[NIST LinkML schema] --> validate
+    validate --> evidence[Airflow logs and validation artifacts]
+    evidence --> gate{Publishing enabled?}
+    gate -->|No, default| validationOnly[Finish in validation mode]
+    gate -->|Yes, explicit opt-in| publisher[LabCAS publishing pipeline]
+    publisher --> solr[(Solr)]
 ```
 
-2) Trigger the Airflow DAG
+The exact normalization tasks differ by collection, but every DAG keeps the validation and publish decision visible as separate Airflow tasks. A validation error stops the DAG before the publish gate.
+
+### Runtime configuration
+
+Configure the source metadata outside Git and mount it into both Airflow and the validator where required. The collection DAGs read these settings:
+
+| Workflow | Required runtime settings |
+| --- | --- |
+| Genome Editing | `GENOME_LINKML_COLLECTION_INPUT`, `GENOME_LINKML_DATASET_INPUT`, `GENOME_LINKML_FILE_INPUT` |
+| Flow Cytometry | `FLOW_LINKML_INPUT_DIR` or `FLOW_LINKML_MANIFEST` |
+| Cell Provenance | `CELL_LINKML_BUNDLE`, `NIST_LINKML_SCHEMA_PATH` |
+| NMSB | `NMSB_COLLECTION_WORKBOOK`, `NMSB_DATASET_WORKBOOK`, `NMSB_ELAB_JSON`, `NMSB_RECORD_ID`, `NMSB_DATASET_ID` |
+
+Output, staging, and log locations can also be overridden with the corresponding collection-specific environment variables. Do not commit local metadata, generated payloads, logs, credentials, or deployment-specific paths.
+
+### Run a validation-only demo
+
+1. Configure and mount the selected collection's input metadata.
+2. Start the Docker Compose services.
+3. Trigger one collection DAG:
 
 ```bash
-docker compose exec airflow airflow dags trigger parse_and_publish
+docker compose exec airflow airflow dags trigger <dag_id>
 ```
 
-3) Check Airflow UI
+4. Open the Airflow UI, select the DAG run, and use Grid or Graph view to follow the input check, normalization, LinkML validation, and publish-gate tasks.
+5. Open the validation task log to review per-record pass/fail messages and the summary. The final publish task should report that Solr publishing was skipped.
 
-- URL: `http://localhost:8082/`
-- Login: `admin` / `admin`
-- Browse -> DAG Runs -> confirm the run succeeded.
-- If it remains queued, click into the DAG and press the play button (Trigger DAG).
+### Enable publishing explicitly
 
-4) Verify in LabCAS UI
+Only enable this after validating the metadata and configuring the target deployment and credentials:
 
-- URL: `https://localhost/labcas-ui`
-- Test login: `dliu` / `secret`
-- You should see the initial `test_collection` and the newly published `Basophile` collection.
-
-Tips:
-- Accept the browser warning for the self-signed certificate when visiting `https://localhost`.
-- UI config lives at `labcas-ui/environment.cfg`. The default sets `"environment": "/labcas-backend/"`, which routes UI API calls through the proxy.
-
-## Quick Start: Genomic LinkML Validation + Publish (Airflow)
-
-This workflow runs a minimal genomic "hello world" mapper, validates the mapped payload against
-the `Datasetlevel` class from `usnistgov/nist-labcas-linkml`, then publishes the resulting
-collection/dataset/file into LabCAS using the transient `labcas-publish` container.
-
-1) Build and start services
-
-```bash
-docker compose build --no-cache && docker compose up -d
+```json
+{
+  "publish_enabled": "true",
+  "publish_collection": "<configured collection>"
+}
 ```
 
-2) Trigger the DAG
-
-```bash
-docker compose exec airflow airflow dags trigger genomic_helloworld_linkml_validation
-```
-
-3) Confirm success
-
-- Airflow UI: `http://localhost:8082/`
-- DAG: `genomic_helloworld_linkml_validation`
-- Successful tasks:
-  - `reset_generated_state`
-  - `create_hello_world_input`
-  - `map_genomic_payload`
-  - `wait_validator_container`
-  - `validate_linkml_payload`
-  - `generate_publish_cfg`
-  - `stage_archive_file`
-  - `wait_publish_container`
-  - `publish_metadata`
-  - `publish_files_only` (no-op unless `RUN_PUBLISH_FILES_ONLY=true`)
-
-Generated files:
-- Input: `/data/raw/genomic_helloworld/input.json`
-- Raw file: `/data/raw/genomic_helloworld/GENOMIC-HELLO-001.fastq`
-- Mapped output: `/data/staging/genomic_helloworld/datasetlevel.yaml`
-- Metadata cfgs: `/metadata/genomic_helloworld/...`
-- Archive payload: `/data/archive/nist/genomic_helloworld/mission/GENOMIC-HELLO-001.fastq`
-
-4) Verify in LabCAS UI
-
-- URL: `https://localhost/labcas-ui`
-- Login: `dliu` / `secret`
-- Confirm collection `genomic_helloworld` appears and contains dataset `mission`.
-
-Runtime notes:
-- The Airflow startup script builds and runs a DIND container named
-  `labcas-linkml-validator` from `airflow/scripts/linkml_validator_dind.Dockerfile`.
-- The validator clones `https://github.com/usnistgov/nist-labcas-linkml.git`
-  and validates mapped payloads via `python /opt/linkml/linkml_validate.py`.
-- If the LinkML repo requires authentication, set `GITHUB_TOKEN` (or `LINKML_GITHUB_TOKEN`)
-  in `.env` so the DIND build can clone it.
-- Validation output is saved per DAG run under
-  `/data/logs/airflow/linkml_validation/` (host path: `data/logs/airflow/linkml_validation/`).
-  Override with `GENOMIC_HELLOWORLD_LINKML_LOG_DIR`.
-
-## Quick Start: Cell Expansion Provenance + Publish (Airflow)
-
-This workflow reads John’s cell expansion provenance bundle from
-`data/raw/CellExpansion-04092026_Bundle`, applies the workbook-driven mapping from
-`data/raw/conf/CellLineCrossWalk.xlsx`, validates the staged LinkML payloads,
-then crawls and publishes the generated collection/dataset/file metadata through
-the existing `labcas-publish` container.
-
-The parser is collection-specific. It derives the allowed source field set from
-the union of workbook activity tabs, preserves entity-only extras in raw metadata,
-materializes real `DataList` instrument files as file artifacts, and synthesizes
-component sub-bundle JSONs when the raw input only ships a full collated bundle.
-
-1) Build and start services
-
-```bash
-docker compose build --no-cache && docker compose up -d
-```
-
-2) Trigger the DAG
-
-```bash
-docker compose exec airflow bash -lc \
-  'su -p airflow -c "HOME=/home/airflow PATH=/home/airflow/.local/bin:$PATH airflow dags trigger cell_expansion_parse_and_publish"'
-```
-
-3) Confirm success
-
-- Airflow UI: `http://localhost:8082/`
-- DAG: `cell_expansion_parse_and_publish`
-- CLI:
-
-```bash
-docker compose exec airflow bash -lc \
-  'su -p airflow -c "HOME=/home/airflow PATH=/home/airflow/.local/bin:$PATH airflow dags list-runs -d cell_expansion_parse_and_publish"'
-```
-
-- Successful tasks:
-  - `reset_generated_state`
-  - `parse_bundle`
-  - `wait_validator_container`
-  - `stage_validation_matrix_script`
-  - `validate_linkml_matrix`
-  - `wait_publish_container`
-  - `crawl_metadata`
-  - `normalize_generated_metadata`
-  - `publish_metadata`
-  - `publish_files_only` (no-op unless `RUN_PUBLISH_FILES_ONLY=true`)
-
-Generated files:
-- Metadata cfgs: `/metadata/cell_expansion_collection/...`
-- Archive payload: `/data/archive/nist/cell_expansion_collection/CellExpansion-000_v1/...`
-- Collection YAML: `/data/staging/cell_expansion_collection/collectionlevel.yaml`
-- Dataset manifest: `/data/staging/cell_expansion_collection/bulk/validation_manifest.json`
-- File manifest: `/data/staging/cell_expansion_collection/files_bulk/file_validation_manifest.json`
-- Download package manifest: `/data/staging/cell_expansion_collection/download_packages.json`
-- Ingestion report: `/data/staging/cell_expansion_collection/ingestion_report.json`
-
-4) Verify in LabCAS UI
-
-- URL: `https://localhost/labcas-ui`
-- Login: `dliu` / `secret`
-- Confirm collection `cell_expansion_collection` appears and contains dataset `CellExpansion-000_v1`.
-
-Parser-only local validation:
-
-```bash
-python3 -m unittest discover -s tests -p 'test_cell_provenance.py' -v
-
-python3 airflow/scripts/parsers/cell_provenance.py \
-  --bundle-dir data/raw/CellExpansion-04092026_Bundle \
-  --workbook data/raw/conf/CellLineCrossWalk.xlsx \
-  --output-dir /tmp/cell-expansion-metadata \
-  --staging-dir /tmp/cell-expansion-staging \
-  --archive-root /tmp/cell-expansion-archive
-```
+The publish task requires runtime credentials and publisher configuration. No usernames, passwords, tokens, or source metadata belong in this repository.
 
 ## Known CORS Behavior
 

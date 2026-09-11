@@ -14,14 +14,18 @@ data/generated_metadata_manifest_smoke/
 data/labcas-data/
 data/manifest_only/
 data/manifest_only_compact/
+data/raw/
 data/raw/genome_editing_consortium/
 data/raw/genomic_helloworld/
 data/raw/CellExpansion-*_Bundle/
 data/raw/conf/
+data/raw/nmsb/
 data/run_state_manifest_compact_smoke/
 data/run_state_manifest_smoke/
 data/run_state_modular/
 docs/
+airflow/scripts/fixtures/
+labcas-ui/overlays/assets/tmp/
 
 airflow/logs/
 labcas-proxy/cacerts/

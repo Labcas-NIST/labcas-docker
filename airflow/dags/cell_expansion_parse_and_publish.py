@@ -57,8 +57,8 @@ with DAG(
         "LINKML_VALIDATOR_CONTAINER_NAME", "labcas-linkml-validator"
     )
     publish_container = os.getenv("PUBLISH_CONTAINER_NAME", "labcas-publish")
-    basic_auth_user = os.getenv("BASIC_AUTH_USER", "dliu")
-    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "secret")
+    basic_auth_user = os.getenv("BASIC_AUTH_USER", "")
+    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "")
 
     reset_generated_state = BashOperator(
         task_id="reset_generated_state",

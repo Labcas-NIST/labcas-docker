@@ -115,6 +115,15 @@ build_linkml_validator_image() {
   local image="${LINKML_VALIDATOR_IMAGE:-labcas-docker-clean-linkml-validator}"
   local dockerfile="/opt/airflow/scripts/linkml_validator_dind.Dockerfile"
   local context="/opt/airflow/scripts"
+  local install_mode="remote"
+
+  if [ -n "${LINKML_LOCAL_REPO_CONTAINER_PATH:-}" ]; then
+    if [ ! -d "${LINKML_LOCAL_REPO_CONTAINER_PATH}/src/nist_labcas_linkml" ]; then
+      echo "ERROR: LINKML_LOCAL_REPO_CONTAINER_PATH does not contain the LinkML source tree: ${LINKML_LOCAL_REPO_CONTAINER_PATH}" >&2
+      exit 1
+    fi
+    install_mode="local"
+  fi
 
   if docker image inspect "${image}" >/dev/null 2>&1; then
     echo "LinkML validator image ${image} already present; skipping build."
@@ -127,9 +136,11 @@ build_linkml_validator_image() {
   fi
 
   docker build \
+    --network host \
     --build-arg LINKML_REPO_URL="${LINKML_REPO_URL:-https://github.com/usnistgov/nist-labcas-linkml.git}" \
     --build-arg LINKML_REPO_REF="${LINKML_REPO_REF:-main}" \
     --build-arg LINKML_GITHUB_TOKEN="${LINKML_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}" \
+    --build-arg LINKML_INSTALL_MODE="${install_mode}" \
     -t "${image}" \
     -f "${dockerfile}" \
     "${context}"
@@ -147,6 +158,7 @@ start_linkml_validator_container() {
   local container="${LINKML_VALIDATOR_CONTAINER_NAME:-labcas-linkml-validator}"
   local data_path="${AIRFLOW_DIND_DATA_PATH:-/data}"
   local metadata_path="${AIRFLOW_DIND_METADATA_PATH:-/metadata}"
+  local local_repo_path="${LINKML_LOCAL_REPO_CONTAINER_PATH:-}"
 
   if ! docker image inspect "${image}" >/dev/null 2>&1; then
     echo "ERROR: LinkML validator image ${image} not found; cannot start ${container}."
@@ -163,12 +175,20 @@ start_linkml_validator_container() {
     docker rm -f "${container}" >/dev/null
   fi
 
-  docker run -d \
-    --name "${container}" \
-    --network host \
-    -v "${data_path}:/data" \
-    -v "${metadata_path}:/metadata" \
-    "${image}" >/dev/null
+  local run_args=(
+    -d
+    --name "${container}"
+    --network host
+    -v "${data_path}:/data"
+    -v "${metadata_path}:/metadata"
+  )
+  if [ -n "${local_repo_path}" ]; then
+    run_args+=(
+      -e "PYTHONPATH=/opt/nist-labcas-linkml/src"
+      -v "${local_repo_path}:/opt/nist-labcas-linkml:ro"
+    )
+  fi
+  docker run "${run_args[@]}" "${image}" >/dev/null
 }
 
 airflow_cmd() {

@@ -144,17 +144,31 @@ services:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
       - DIND_ENABLED=1
-      - BUILD_PUBLISH_IMAGE=1
-      - START_PUBLISH_CONTAINER=1
+      - BUILD_PUBLISH_IMAGE=${BUILD_PUBLISH_IMAGE:-1}
+      - START_PUBLISH_CONTAINER=${START_PUBLISH_CONTAINER:-1}
+      - LABCAS_PUBLISH_ENABLED=${LABCAS_PUBLISH_ENABLED:-false}
       - PUBLISH_IMAGE=labcas-docker-clean-publish
       - PUBLISH_CONTAINER_NAME=labcas-publish
-      - BUILD_LINKML_VALIDATOR_IMAGE=1
-      - START_LINKML_VALIDATOR_CONTAINER=1
+      - BUILD_LINKML_VALIDATOR_IMAGE=${BUILD_LINKML_VALIDATOR_IMAGE:-1}
+      - START_LINKML_VALIDATOR_CONTAINER=${START_LINKML_VALIDATOR_CONTAINER:-1}
       - LINKML_VALIDATOR_IMAGE=labcas-docker-clean-linkml-validator
       - LINKML_VALIDATOR_CONTAINER_NAME=labcas-linkml-validator
       - LINKML_REPO_URL=${LINKML_REPO_URL:-https://github.com/usnistgov/nist-labcas-linkml.git}
       - LINKML_REPO_REF=${LINKML_REPO_REF:-main}
       - LINKML_GITHUB_TOKEN=${LINKML_GITHUB_TOKEN:-${GITHUB_TOKEN}}
+      # Collection metadata is supplied at runtime and remains outside Git.
+      - GENOME_LINKML_COLLECTION_INPUT=${GENOME_LINKML_COLLECTION_INPUT:-}
+      - GENOME_LINKML_DATASET_INPUT=${GENOME_LINKML_DATASET_INPUT:-}
+      - GENOME_LINKML_FILE_INPUT=${GENOME_LINKML_FILE_INPUT:-}
+      - FLOW_LINKML_INPUT_DIR=${FLOW_LINKML_INPUT_DIR:-}
+      - FLOW_LINKML_MANIFEST=${FLOW_LINKML_MANIFEST:-}
+      - CELL_LINKML_BUNDLE=${CELL_LINKML_BUNDLE:-}
+      - NIST_LINKML_SCHEMA_PATH=${NIST_LINKML_SCHEMA_PATH:-/opt/nist-labcas-linkml/src/nist_labcas_linkml/schema/nist_labcas_linkml.yaml}
+      - NMSB_COLLECTION_WORKBOOK=${NMSB_COLLECTION_WORKBOOK:-}
+      - NMSB_DATASET_WORKBOOK=${NMSB_DATASET_WORKBOOK:-}
+      - NMSB_ELAB_JSON=${NMSB_ELAB_JSON:-}
+      - NMSB_RECORD_ID=${NMSB_RECORD_ID:-}
+      - NMSB_DATASET_ID=${NMSB_DATASET_ID:-}
       - AIRFLOW_DIND_DATA_PATH=/data
       - AIRFLOW_DIND_METADATA_PATH=/metadata
       - AIRFLOW_DIND_PUBLISH_CONFIG=/config/publish
@@ -215,7 +229,7 @@ services:
 
     # Health-check so Airflow can wait until labcas-publish is ready
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f publishing_pipeline.py >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "test -f /opt/publish/publishing_pipeline.py || test -f /opt/publish/src/publishing_pipeline.py"]
       interval: 30s
       timeout: 5s
       retries: 5

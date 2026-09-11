@@ -11,6 +11,16 @@ sys.path.insert(0, str(ROOT / "airflow" / "scripts" / "parsers"))
 import cell_provenance  # noqa: E402
 
 
+PRIVATE_FIXTURES_AVAILABLE = (
+    (ROOT / "data" / "raw" / "CellExpansion-04092026_Bundle").is_dir()
+    and (ROOT / "data" / "raw" / "conf" / "CellLineCrossWalk.xlsx").is_file()
+)
+
+
+@unittest.skipUnless(
+    PRIVATE_FIXTURES_AVAILABLE,
+    "Private runtime fixtures are not included; provide them to run these parser integration tests.",
+)
 class CellProvenanceParserTests(unittest.TestCase):
     maxDiff = None
 

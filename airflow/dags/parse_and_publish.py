@@ -21,8 +21,8 @@ with DAG(
         bash_command="set -euxo pipefail; ls -al /data; python /opt/airflow/scripts/parse_excel.py /data/raw/Basophile.csv /data/staging/Basophile/Basophile.cfg",
     )
     
-    basic_auth_user = os.getenv("BASIC_AUTH_USER", "dliu")
-    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "secret")
+    basic_auth_user = os.getenv("BASIC_AUTH_USER", "")
+    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "")
 
  
     # ------------------------------------------------------------------

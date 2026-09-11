@@ -8,8 +8,8 @@ set -euo pipefail
 #   PUBLISH_CONSORTIUM=NIST     # consortium (default: NIST)
 #   PUBLISH_COLLECTION=fcs_interlab_study
 #   PUBLISH_STEPS=crawl,publish
-#   BASIC_AUTH_USER=dliu        # Data Access API auth
-#   BASIC_AUTH_PASS=secret
+#   BASIC_AUTH_USER=...         # Data Access API auth (request from the owner)
+#   BASIC_AUTH_PASS=...         # Data Access API auth (request from the owner)
 #   TIMEOUT_SECONDS=900         # monitor timeout (default 15m)
 #
 # Usage:
@@ -18,9 +18,15 @@ set -euo pipefail
 CONSORTIUM=${PUBLISH_CONSORTIUM:-NIST}
 COLLECTION=${PUBLISH_COLLECTION:-fcs_interlab_study}
 STEPS=${PUBLISH_STEPS:-crawl,publish}
-AUTH_USER=${BASIC_AUTH_USER:-dliu}
-AUTH_PASS=${BASIC_AUTH_PASS:-secret}
+AUTH_USER=${BASIC_AUTH_USER:-}
+AUTH_PASS=${BASIC_AUTH_PASS:-}
 TIMEOUT=${TIMEOUT_SECONDS:-3600}
+
+if [ -z "$AUTH_USER" ] || [ -z "$AUTH_PASS" ]; then
+  echo "Set BASIC_AUTH_USER and BASIC_AUTH_PASS with credentials from the repository owner." >&2
+  exit 1
+fi
+
 STREAM_PUBLISH_LOGS=${STREAM_PUBLISH_LOGS:-1}
 STREAM_BACKEND_LOGS=${STREAM_BACKEND_LOGS:-0}
 BUILD_CACHE_SUMMARY=""

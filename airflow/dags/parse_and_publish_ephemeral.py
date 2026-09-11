@@ -84,8 +84,8 @@ with DAG(
     )
 
     # Credentials and runtime settings
-    basic_auth_user = os.getenv("BASIC_AUTH_USER", "dliu")
-    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "secret")
+    basic_auth_user = os.getenv("BASIC_AUTH_USER", "")
+    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "")
 
     # Use a distinct collection name for ephemeral runs so it's easy
     # to verify in the UI/Solr without clobbering the main collection.

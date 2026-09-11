@@ -44,8 +44,8 @@ with DAG(
         ),
     )
 
-    basic_auth_user = os.getenv("BASIC_AUTH_USER", "dliu")
-    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "secret")
+    basic_auth_user = os.getenv("BASIC_AUTH_USER", "")
+    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "")
 
     # Wait for the long-running labcas-publish container to be healthy
     wait_publish = BashOperator(

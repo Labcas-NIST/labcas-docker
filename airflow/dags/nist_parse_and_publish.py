@@ -38,7 +38,7 @@ with DAG(
             "cd /metadata && if [ -d fcs_interlab_study ]; then find fcs_interlab_study -type d -print0 | xargs -0 -I {} mkdir -p /data/archive/nist/{}; fi; "
             # Create dummy files in archive for each [File] cfg discovered in metadata
             "cd /metadata/fcs_interlab_study && find . -type f -name '*.cfg' -print0 | while IFS= read -r -d '' cfg; do "
-            "  if head -n1 \"$cfg\" | grep -q '^\[File\]'; then "
+            "  if head -n1 \"$cfg\" | grep -q '^\\[File\\]'; then "
             "    dir=$(dirname \"$cfg\"); base=$(basename \"$cfg\" .cfg); "
             "    dest=\"/data/archive/nist/fcs_interlab_study/$dir/$base\"; "
             "    mkdir -p \"$(dirname \"$dest\")\"; [ -f \"$dest\" ] || touch \"$dest\"; "
@@ -47,8 +47,8 @@ with DAG(
         ),
     )
 
-    basic_auth_user = os.getenv("BASIC_AUTH_USER", "dliu")
-    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "secret")
+    basic_auth_user = os.getenv("BASIC_AUTH_USER", "")
+    basic_auth_pass = os.getenv("BASIC_AUTH_PASS", "")
 
     # Wait for the long-running labcas-publish container to be healthy
     wait_publish = BashOperator(

@@ -1,0 +1,14 @@
+services:
+  airflow:
+    build:
+      args:
+        GITHUB_TOKEN: ""
+        PUBLISH_INSTALL_MODE: skip
+    environment:
+      - LINKML_LOCAL_REPO_CONTAINER_PATH=/linkml-source
+      - LINKML_VALIDATOR_IMAGE=labcas-docker-nmsb-linkml-validator
+      - BUILD_PUBLISH_IMAGE=0
+      - START_PUBLISH_CONTAINER=0
+      - LABCAS_PUBLISH_ENABLED=false
+    volumes:
+      - ${LINKML_LOCAL_REPO_HOST_PATH:-../nist-labcas-linkml}:/linkml-source:ro

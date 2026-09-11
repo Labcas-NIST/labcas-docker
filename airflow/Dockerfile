@@ -9,10 +9,17 @@ RUN apt-get update && apt-get install -y git docker.io iptables && rm -rf /var/l
 ARG GITHUB_TOKEN
 ARG PUBLISH_REPO_URL=https://github.com/jpl-labcas/publish.git
 ARG PUBLISH_REPO_REF=simplified_publish
-RUN if [ -z "$GITHUB_TOKEN" ]; then \
-      echo "GITHUB_TOKEN build arg is required" >&2; exit 1; \
+ARG PUBLISH_INSTALL_MODE=remote
+RUN if [ "${PUBLISH_INSTALL_MODE}" = "remote" ]; then \
+      if [ -z "$GITHUB_TOKEN" ]; then \
+        echo "GITHUB_TOKEN build arg is required" >&2; exit 1; \
+      fi; \
+      git clone --branch "${PUBLISH_REPO_REF}" --single-branch "https://${GITHUB_TOKEN}@${PUBLISH_REPO_URL#https://}" /opt/publish; \
+    elif [ "${PUBLISH_INSTALL_MODE}" = "skip" ]; then \
+      mkdir -p /opt/publish; \
+    else \
+      echo "Unknown PUBLISH_INSTALL_MODE=${PUBLISH_INSTALL_MODE}" >&2; exit 1; \
     fi
-RUN git clone --branch "${PUBLISH_REPO_REF}" --single-branch "https://${GITHUB_TOKEN}@${PUBLISH_REPO_URL#https://}" /opt/publish
 
 RUN if [ -f /opt/publish/setup.py ]; then \
       pip install /opt/publish; \
